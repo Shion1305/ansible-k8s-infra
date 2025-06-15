@@ -2,17 +2,17 @@
 # Kubernetes Cluster with WireGuard Overlay Network
 # Main deployment playbook
 
-- name: Deploy Kubernetes Cluster with WireGuard
+- name: Setup Common Prerequisites
   hosts: all
   become: yes
   gather_facts: yes
-  serial: 1
   
   pre_tasks:
     - name: Update package cache
       package:
         update_cache: yes
       when: ansible_os_family == "Debian"
+      ignore_errors: yes
       
     - name: Ensure required directories exist
       file:
@@ -26,25 +26,130 @@
 
   roles:
     - common
-    - wireguard
     - kubernetes
-    - role: control-plane
+
+- name: Generate WireGuard Keys
+  hosts: all
+  become: yes
+  gather_facts: no
+  
+  tasks:
+    - name: Install WireGuard
+      package:
+        name:
+          - wireguard
+          - wireguard-tools
+        state: present
+        
+    - name: Resolve control plane public IP
+      set_fact:
+        control_plane_public_ip: "{{ lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host']) }}"
+      run_once: true
+      delegate_to: localhost
+      delegate_facts: yes
+      
+    - name: Generate WireGuard private key
+      shell: wg genkey
+      register: private_key
+      changed_when: false
+      no_log: true
+      
+    - name: Generate WireGuard public key
+      shell: echo "{{ private_key.stdout }}" | wg pubkey
+      register: public_key
+      changed_when: false
+      no_log: true
+      
+    - name: Store keys in facts
+      set_fact:
+        wireguard_private_key: "{{ private_key.stdout }}"
+        wireguard_public_key: "{{ public_key.stdout }}"
+      no_log: true
+
+- name: Configure WireGuard
+  hosts: all
+  become: yes
+  gather_facts: no
+  
+  tasks:
+    - name: Create WireGuard configuration
+      template:
+        src: "roles/wireguard/templates/{{ wireguard_interface }}.conf.j2"
+        dest: "/etc/wireguard/{{ wireguard_interface }}.conf"
+        mode: '0600'
+        backup: yes
+      notify: restart wireguard
+      
+    - name: Enable and start WireGuard service
+      systemd:
+        name: "wg-quick@{{ wireguard_interface }}"
+        enabled: yes
+        state: started
+        
+    - name: Add iptables rules for WireGuard on control plane
+      iptables:
+        chain: "{{ item.chain }}"
+        in_interface: "{{ wireguard_interface }}"
+        jump: ACCEPT
+        action: insert
+        rule_num: 1
+      loop:
+        - { chain: 'INPUT' }
+        - { chain: 'FORWARD' }
       when: inventory_hostname in groups['control_plane']
-    - role: worker
-      when: inventory_hostname in groups['workers']
+      
+    - name: Add iptables rules for WireGuard output on control plane
+      iptables:
+        chain: FORWARD
+        out_interface: "{{ wireguard_interface }}"
+        jump: ACCEPT
+        action: insert
+        rule_num: 1
+      when: inventory_hostname in groups['control_plane']
+      
+  handlers:
+    - name: restart wireguard
+      systemd:
+        name: "wg-quick@{{ wireguard_interface }}"
+        state: restarted
+
+- name: Initialize Control Plane
+  hosts: control_plane
+  become: yes
+  gather_facts: no
+  
+  roles:
+    - control-plane
+
+- name: Join Worker Nodes
+  hosts: workers
+  become: yes
+  gather_facts: no
+  
+  roles:
+    - worker
+
+- name: Deploy CNI
+  hosts: all
+  become: yes
+  gather_facts: no
+  
+  roles:
     - cni
     
-  post_tasks:
+- name: Verify Deployment
+  hosts: control_plane
+  become: yes
+  gather_facts: no
+  
+  tasks:
     - name: Verify node status
-      command: kubectl get nodes
+      command: kubectl get nodes -o wide
       register: node_status
-      delegate_to: "{{ groups['control_plane'][0] }}"
-      run_once: true
-      become_user: "{{ hostvars[groups['control_plane'][0]]['ansible_user'] }}"
+      become_user: "{{ ansible_user }}"
       changed_when: false
       
     - name: Display cluster status
       debug:
         msg: "{{ node_status.stdout_lines }}"
-      run_once: true
 

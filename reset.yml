@@ -90,12 +90,12 @@
       command: iptables -F
       ignore_errors: yes
       
-    - name: Remove hosts entry for s2204
+    - name: Remove hosts entry for worker nodes
       lineinfile:
         path: /etc/hosts
         regexp: '^.*k8s\.shion1305\.com.*$'
         state: absent
-      when: inventory_hostname == 's2204'
+      when: inventory_hostname in groups['workers']
       
     - name: Reboot system
       reboot:

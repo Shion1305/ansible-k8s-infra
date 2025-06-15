@@ -1,6 +1,19 @@
 ---
-- name: Configure UFW firewall for s2204
+- name: Install UFW firewall
+  package:
+    name: ufw
+    state: present
+  when: has_ufw is defined and has_ufw
+  
+- name: Configure UFW firewall for worker nodes
   block:
+    - name: Allow SSH access
+      ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+        comment: "SSH access"
+        
     - name: Allow kubelet API
       ufw:
         rule: allow
@@ -26,15 +39,20 @@
         rule: allow
         direction: out
         interface: "{{ wireguard_interface }}"
+        
+    - name: Enable UFW firewall
+      ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
   when: has_ufw is defined and has_ufw
   
-- name: Add DNS override for s2204
+- name: Add DNS override for WireGuard routing
   lineinfile:
     path: /etc/hosts
     regexp: '^.*k8s\.shion1305\.com.*$'
     line: "{{ hostvars[groups['control_plane'][0]]['wireguard_ip'] }} {{ hostvars[groups['control_plane'][0]]['ansible_host'] }}"
     backup: yes
-  when: inventory_hostname == 's2204'
   
 - name: Check if node is already joined
   stat:

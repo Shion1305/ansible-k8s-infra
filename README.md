@@ -5,9 +5,10 @@ This Ansible playbook automates the deployment of a Kubernetes cluster with Wire
 ## Architecture Overview
 
 - **Control Plane**: k8s (Oracle Cloud, Tokyo)
-- **Worker Nodes**: cm4 (Raspberry Pi CM4), s2204 (Ubuntu x86_64)
+- **Worker Nodes**: cm4 (Raspberry Pi CM4), s2204 (Ubuntu x86_64) 
 - **Networking**: WireGuard tunnels + local network optimization
 - **CNI**: Flannel with custom configuration for WireGuard compatibility
+- **Firewall**: UFW standardized across all worker nodes
 
 ## Prerequisites
 
@@ -109,8 +110,7 @@ ansible-k8s-wireguard/
     ├── wireguard/           # WireGuard setup
     │   ├── tasks/main.yml
     │   ├── templates/
-    │   │   ├── wg0.conf.j2
-    │   │   └── wg-k8s.conf.j2
+    │   │   └── wg0.conf.j2
     │   └── handlers/main.yml
     ├── kubernetes/          # Kubernetes installation
     │   ├── tasks/main.yml

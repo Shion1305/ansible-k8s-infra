@@ -19,11 +19,7 @@ AllowedIPs = {{ hostvars[host]['wireguard_ip'] }}/32
 [Peer]
 PublicKey = {{ hostvars[groups['control_plane'][0]]['wireguard_public_key'] }}
 Endpoint = {{ hostvars[groups['control_plane'][0]]['control_plane_public_ip'] | default(lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host'])) }}:{{ hostvars[groups['control_plane'][0]]['wireguard_port'] }}
-{% if inventory_hostname == 'cm4' %}
 AllowedIPs = {{ wireguard_network }}
-{% else %}
-AllowedIPs = {{ hostvars[groups['control_plane'][0]]['wireguard_ip'] }}/32
-{% endif %}
 PersistentKeepalive = 25
 {% endif %}
 

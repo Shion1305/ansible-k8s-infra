@@ -1,0 +1,34 @@
+---
+- name: Test Standardized Worker Configuration
+  hosts: workers
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Verify both workers use wg0 interface
+      debug:
+        msg: "{{ inventory_hostname }}: WireGuard interface = {{ wireguard_interface }}"
+        
+    - name: Verify both workers have UFW configured
+      debug:
+        msg: "{{ inventory_hostname }}: UFW enabled = {{ has_ufw }}"
+        
+    - name: Check if UFW is installed
+      command: which ufw
+      register: ufw_check
+      failed_when: false
+      changed_when: false
+      
+    - name: Display UFW installation status
+      debug:
+        msg: "{{ inventory_hostname }}: UFW installed = {{ ufw_check.rc == 0 }}"
+        
+    - name: Verify WireGuard IP assignments
+      debug:
+        msg: "{{ inventory_hostname }}: WireGuard IP = {{ wireguard_ip }}"
+        
+    - name: Test dynamic IP resolution
+      debug:
+        msg: "Control plane public IP: {{ lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host']) }}"
+      run_once: true
+

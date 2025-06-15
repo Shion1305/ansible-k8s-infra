@@ -24,6 +24,7 @@ all:
           architecture: arm64
           wireguard_interface: wg0
           cni_version: v1.3.0
+          has_ufw: true
           
         s2204:
           ansible_host: s2204
@@ -32,7 +33,7 @@ all:
           local_ip: 192.168.11.2
           wireguard_ip: 10.0.0.4
           architecture: amd64
-          wireguard_interface: wg-k8s
+          wireguard_interface: wg0
           cni_version: v1.3.0
           has_ufw: true
           
