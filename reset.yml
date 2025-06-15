@@ -1,0 +1,104 @@
+---
+# Reset Kubernetes Cluster
+# WARNING: This will completely destroy the existing cluster!
+
+- name: Reset Kubernetes Cluster
+  hosts: all
+  become: yes
+  gather_facts: no
+  serial: 1
+  
+  tasks:
+    - name: Drain and delete node from cluster
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Node
+        name: "{{ inventory_hostname }}"
+        state: absent
+      delegate_to: "{{ groups['control_plane'][0] }}"
+      become_user: "{{ hostvars[groups['control_plane'][0]]['ansible_user'] }}"
+      become: no
+      ignore_errors: yes
+      when: inventory_hostname in groups['workers']
+      
+    - name: Reset Kubernetes configuration
+      command: kubeadm reset --force
+      ignore_errors: yes
+      
+    - name: Stop WireGuard service
+      systemd:
+        name: "wg-quick@{{ wireguard_interface }}"
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+      
+    - name: Remove WireGuard configuration
+      file:
+        path: "/etc/wireguard/{{ wireguard_interface }}.conf"
+        state: absent
+        
+    - name: Unhold Kubernetes packages
+      dpkg_selections:
+        name: "{{ item }}"
+        selection: install
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+      ignore_errors: yes
+        
+    - name: Remove Kubernetes packages
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: absent
+        allow_change_held_packages: yes
+        
+    - name: Remove containerd
+      package:
+        name: containerd
+        state: absent
+        
+    - name: Remove WireGuard
+      package:
+        name:
+          - wireguard
+          - wireguard-tools
+        state: absent
+        
+    - name: Clean up directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes
+        - /var/lib/kubelet
+        - /var/lib/etcd
+        - /etc/cni
+        - /opt/cni
+        - /var/lib/containerd
+        
+    - name: Clean up user .kube directory
+      file:
+        path: "/home/{{ ansible_user }}/.kube"
+        state: absent
+      become: no
+        
+    - name: Remove iptables rules
+      command: iptables -F
+      ignore_errors: yes
+      
+    - name: Remove hosts entry for s2204
+      lineinfile:
+        path: /etc/hosts
+        regexp: '^.*k8s\.shion1305\.com.*$'
+        state: absent
+      when: inventory_hostname == 's2204'
+      
+    - name: Reboot system
+      reboot:
+        reboot_timeout: 300
+      when: ansible_reboot_required | default(false)
+

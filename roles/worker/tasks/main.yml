@@ -1,0 +1,61 @@
+---
+- name: Configure UFW firewall for s2204
+  block:
+    - name: Allow kubelet API
+      ufw:
+        rule: allow
+        port: '10250'
+        proto: tcp
+        comment: "Kubernetes kubelet"
+        
+    - name: Allow NodePort services
+      ufw:
+        rule: allow
+        port: '30000:32767'
+        proto: tcp
+        comment: "Kubernetes NodePort services"
+        
+    - name: Allow WireGuard interface input
+      ufw:
+        rule: allow
+        direction: in
+        interface: "{{ wireguard_interface }}"
+        
+    - name: Allow WireGuard interface output
+      ufw:
+        rule: allow
+        direction: out
+        interface: "{{ wireguard_interface }}"
+  when: has_ufw is defined and has_ufw
+  
+- name: Add DNS override for s2204
+  lineinfile:
+    path: /etc/hosts
+    regexp: '^.*k8s\.shion1305\.com.*$'
+    line: "{{ hostvars[groups['control_plane'][0]]['wireguard_ip'] }} {{ hostvars[groups['control_plane'][0]]['ansible_host'] }}"
+    backup: yes
+  when: inventory_hostname == 's2204'
+  
+- name: Check if node is already joined
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf_exists
+  
+- name: Join worker node to cluster
+  command: "{{ kubernetes_join_command }}"
+  when: not kubelet_conf_exists.stat.exists and kubernetes_join_command is defined
+  
+- name: Update kubelet configuration with node IP
+  lineinfile:
+    path: /var/lib/kubelet/kubeadm-flags.env
+    regexp: '^KUBELET_KUBEADM_ARGS=.*'
+    line: 'KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.10 --node-ip={{ wireguard_ip }}"'
+    backup: yes
+  notify: restart kubelet
+  
+- name: Ensure kubelet is running
+  systemd:
+    name: kubelet
+    state: started
+    enabled: yes
+

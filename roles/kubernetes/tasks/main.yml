@@ -1,0 +1,85 @@
+---
+- name: Add Kubernetes APT repository key
+  apt_key:
+    url: https://pkgs.k8s.io/core:/stable:/v1.33/deb/Release.key
+    state: present
+    
+- name: Add Kubernetes APT repository
+  apt_repository:
+    repo: "deb https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /"
+    state: present
+    
+- name: Install containerd
+  package:
+    name: containerd
+    state: present
+    
+- name: Create containerd configuration directory
+  file:
+    path: /etc/containerd
+    state: directory
+    mode: '0755'
+    
+- name: Generate containerd configuration
+  shell: containerd config default
+  register: containerd_config
+  changed_when: false
+  
+- name: Write containerd configuration
+  copy:
+    content: "{{ containerd_config.stdout }}"
+    dest: /etc/containerd/config.toml
+    backup: yes
+  notify: restart containerd
+  
+- name: Enable systemd cgroups in containerd
+  lineinfile:
+    path: /etc/containerd/config.toml
+    regexp: '^\s*SystemdCgroup = false'
+    line: '            SystemdCgroup = true'
+  notify: restart containerd
+  
+- name: Install Kubernetes packages
+  package:
+    name:
+      - kubelet={{ kubernetes_version }}
+      - kubeadm={{ kubernetes_version }}
+      - kubectl={{ kubernetes_version }}
+    state: present
+    
+- name: Hold Kubernetes packages
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+    
+- name: Configure kubelet node IP
+  lineinfile:
+    path: /etc/default/kubelet
+    regexp: '^KUBELET_EXTRA_ARGS='
+    line: 'KUBELET_EXTRA_ARGS="--node-ip={{ wireguard_ip }}"'
+    create: yes
+  notify: restart kubelet
+  when: inventory_hostname in groups['workers']
+  
+- name: Configure kubelet node IP for control plane
+  lineinfile:
+    path: /etc/default/kubelet
+    regexp: '^KUBELET_EXTRA_ARGS='
+    line: 'KUBELET_EXTRA_ARGS="--node-ip={{ local_ip }}"'
+    create: yes
+  notify: restart kubelet
+  when: inventory_hostname in groups['control_plane']
+  
+- name: Enable and start services
+  systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - containerd
+    - kubelet
+

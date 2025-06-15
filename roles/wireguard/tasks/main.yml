@@ -1,0 +1,82 @@
+---
+- name: Install WireGuard
+  package:
+    name:
+      - wireguard
+      - wireguard-tools
+    state: present
+    
+- name: Resolve control plane public IP
+  set_fact:
+    control_plane_public_ip: "{{ lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host']) }}"
+  run_once: true
+  delegate_to: localhost
+  when: inventory_hostname in groups['control_plane'] or inventory_hostname in groups['workers']
+    
+- name: Generate WireGuard private key
+  shell: wg genkey
+  register: private_key
+  changed_when: false
+  no_log: true
+  
+- name: Generate WireGuard public key
+  shell: echo "{{ private_key.stdout }}" | wg pubkey
+  register: public_key
+  changed_when: false
+  no_log: true
+  
+- name: Store keys in facts
+  set_fact:
+    wireguard_private_key: "{{ private_key.stdout }}"
+    wireguard_public_key: "{{ public_key.stdout }}"
+  no_log: true
+  
+- name: Create WireGuard configuration
+  template:
+    src: "{{ wireguard_interface }}.conf.j2"
+    dest: "/etc/wireguard/{{ wireguard_interface }}.conf"
+    mode: '0600'
+    backup: yes
+  notify: restart wireguard
+  
+- name: Enable and start WireGuard service
+  systemd:
+    name: "wg-quick@{{ wireguard_interface }}"
+    enabled: yes
+    state: started
+    
+- name: Wait for WireGuard interface to be up
+  wait_for:
+    timeout: 30
+  delegate_to: localhost
+  
+- name: Verify WireGuard interface
+  command: "wg show {{ wireguard_interface }}"
+  register: wg_status
+  changed_when: false
+  
+- name: Display WireGuard status
+  debug:
+    msg: "{{ wg_status.stdout_lines }}"
+    
+- name: Add iptables rules for WireGuard on control plane
+  iptables:
+    chain: "{{ item.chain }}"
+    in_interface: "{{ wireguard_interface }}"
+    jump: ACCEPT
+    action: insert
+    rule_num: 1
+  loop:
+    - { chain: 'INPUT' }
+    - { chain: 'FORWARD' }
+  when: inventory_hostname in groups['control_plane']
+  
+- name: Add iptables rules for WireGuard output on control plane
+  iptables:
+    chain: FORWARD
+    out_interface: "{{ wireguard_interface }}"
+    jump: ACCEPT
+    action: insert
+    rule_num: 1
+  when: inventory_hostname in groups['control_plane']
+

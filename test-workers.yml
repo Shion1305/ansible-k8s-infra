@@ -1,0 +1,36 @@
+---
+- name: Test Ansible automation on worker nodes
+  hosts: workers
+  become: yes
+  gather_facts: yes
+  
+  pre_tasks:
+    - name: Update package cache
+      package:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+      
+    - name: Ensure required directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /opt/cni/bin
+        - /etc/wireguard
+        - /etc/kubernetes
+
+  roles:
+    - common
+    
+  post_tasks:
+    - name: Verify CNI plugins installation
+      command: ls /opt/cni/bin/loopback
+      register: cni_check
+      changed_when: false
+      
+    - name: Display installation success
+      debug:
+        msg: "CNI plugins successfully installed: {{ cni_check.stdout_lines }}"
+      when: cni_check.rc == 0
+

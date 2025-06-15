@@ -1,0 +1,50 @@
+---
+# Kubernetes Cluster with WireGuard Overlay Network
+# Main deployment playbook
+
+- name: Deploy Kubernetes Cluster with WireGuard
+  hosts: all
+  become: yes
+  gather_facts: yes
+  serial: 1
+  
+  pre_tasks:
+    - name: Update package cache
+      package:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+      
+    - name: Ensure required directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /opt/cni/bin
+        - /etc/wireguard
+        - /etc/kubernetes
+
+  roles:
+    - common
+    - wireguard
+    - kubernetes
+    - role: control-plane
+      when: inventory_hostname in groups['control_plane']
+    - role: worker
+      when: inventory_hostname in groups['workers']
+    - cni
+    
+  post_tasks:
+    - name: Verify node status
+      command: kubectl get nodes
+      register: node_status
+      delegate_to: "{{ groups['control_plane'][0] }}"
+      run_once: true
+      become_user: "{{ hostvars[groups['control_plane'][0]]['ansible_user'] }}"
+      changed_when: false
+      
+    - name: Display cluster status
+      debug:
+        msg: "{{ node_status.stdout_lines }}"
+      run_once: true
+

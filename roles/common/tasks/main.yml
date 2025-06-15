@@ -1,0 +1,78 @@
+---
+- name: Install common packages
+  package:
+    name:
+      - curl
+      - wget
+      - gnupg
+      - software-properties-common
+      - apt-transport-https
+      - ca-certificates
+      - lsb-release
+    state: present
+    
+- name: Disable swap for Kubernetes
+  command: swapoff -a
+  changed_when: false
+  
+- name: Remove swap from fstab
+  lineinfile:
+    path: /etc/fstab
+    regexp: '.*swap.*'
+    state: absent
+    
+- name: Load kernel modules
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+    
+- name: Make kernel modules persistent
+  copy:
+    content: |
+      overlay
+      br_netfilter
+    dest: /etc/modules-load.d/k8s.conf
+    
+- name: Set sysctl parameters for Kubernetes
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+  loop:
+    - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+    - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+    - { name: 'net.ipv4.ip_forward', value: '1' }
+    
+- name: Install CNI plugins
+  block:
+    - name: Download CNI plugins
+      get_url:
+        url: "https://github.com/containernetworking/plugins/releases/download/{{ cni_version }}/cni-plugins-linux-{{ architecture }}-{{ cni_version }}.tgz"
+        dest: "/tmp/cni-plugins-{{ architecture }}.tgz"
+        mode: '0644'
+        
+    - name: Extract CNI plugins
+      unarchive:
+        src: "/tmp/cni-plugins-{{ architecture }}.tgz"
+        dest: /opt/cni/bin
+        remote_src: yes
+        
+    - name: Verify loopback plugin installation
+      stat:
+        path: /opt/cni/bin/loopback
+      register: loopback_plugin
+      
+    - name: Fail if loopback plugin not found
+      fail:
+        msg: "CNI loopback plugin not found at /opt/cni/bin/loopback"
+      when: not loopback_plugin.stat.exists
+      
+    - name: Clean up CNI archive
+      file:
+        path: "/tmp/cni-plugins-{{ architecture }}.tgz"
+        state: absent
+

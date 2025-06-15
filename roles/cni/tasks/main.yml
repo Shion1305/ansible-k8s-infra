@@ -1,0 +1,104 @@
+---
+- name: Apply Flannel CNI
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: kube-flannel
+        labels:
+          k8s-app: flannel
+          pod-security.kubernetes.io/enforce: privileged
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+  become_user: "{{ hostvars[groups['control_plane'][0]]['ansible_user'] }}"
+  become: no
+  
+- name: Download Flannel manifest
+  get_url:
+    url: https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+    dest: /tmp/kube-flannel.yml
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+  become_user: "{{ hostvars[groups['control_plane'][0]]['ansible_user'] }}"
+  become: no
+  
+- name: Apply Flannel manifest
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/kube-flannel.yml
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+  become_user: "{{ hostvars[groups['control_plane'][0]]['ansible_user'] }}"
+  become: no
+  
+- name: Wait for Flannel DaemonSet to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: DaemonSet
+    name: kube-flannel-ds
+    namespace: kube-flannel
+    wait: true
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: 300
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+  become_user: "{{ hostvars[groups['control_plane'][0]]['ansible_user'] }}"
+  become: no
+  
+- name: Patch Flannel DaemonSet for WireGuard compatibility
+  kubernetes.core.k8s_json_patch:
+    api_version: apps/v1
+    kind: DaemonSet
+    name: kube-flannel-ds
+    namespace: kube-flannel
+    patch:
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: KUBERNETES_SERVICE_HOST
+          value: "{{ hostvars[groups['control_plane'][0]]['ansible_host'] }}"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: KUBERNETES_SERVICE_PORT
+          value: "6443"
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+  become_user: "{{ hostvars[groups['control_plane'][0]]['ansible_user'] }}"
+  become: no
+  
+- name: Wait for all nodes to be ready
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Node
+    wait: true
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: 600
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+  become_user: "{{ hostvars[groups['control_plane'][0]]['ansible_user'] }}"
+  become: no
+  
+- name: Wait for CoreDNS pods to be ready
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: kube-system
+    label_selectors:
+      - k8s-app=kube-dns
+    wait: true
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: 600
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+  become_user: "{{ hostvars[groups['control_plane'][0]]['ansible_user'] }}"
+  become: no
+

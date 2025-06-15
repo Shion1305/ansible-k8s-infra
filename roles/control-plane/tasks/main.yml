@@ -1,0 +1,55 @@
+---
+- name: Check if Kubernetes is already initialized
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeconfig_exists
+  
+- name: Initialize Kubernetes control plane
+  command: >
+    kubeadm init
+    --apiserver-advertise-address={{ apiserver_advertise_address }}
+    --control-plane-endpoint={{ control_plane_endpoint }}
+    --pod-network-cidr={{ pod_network_cidr }}
+    --upload-certs
+  register: kubeadm_init
+  when: not kubeconfig_exists.stat.exists
+  
+- name: Create .kube directory
+  file:
+    path: "{{ ansible_env.HOME }}/.kube"
+    state: directory
+    mode: '0700'
+  become_user: "{{ ansible_user }}"
+  become: no
+  
+- name: Copy kubeconfig to user home
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ ansible_env.HOME }}/.kube/config"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0600'
+    remote_src: yes
+  become: no
+  
+- name: Update kubeconfig server endpoint
+  lineinfile:
+    path: "{{ ansible_env.HOME }}/.kube/config"
+    regexp: 'server: https://.*:6443'
+    line: "    server: https://{{ control_plane_endpoint }}"
+  become_user: "{{ ansible_user }}"
+  become: no
+  
+- name: Generate join command for worker nodes
+  command: kubeadm token create --print-join-command
+  register: join_command
+  changed_when: false
+  
+- name: Store join command
+  set_fact:
+    kubernetes_join_command: "{{ join_command.stdout }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: yes
+  loop: "{{ groups['workers'] }}"
+  run_once: true
+
