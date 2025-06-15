@@ -18,59 +18,60 @@
   
 - name: Wait for Flannel DaemonSet to be ready
   shell: |
-    for i in {1..30}; do
-      if kubectl get daemonset -n kube-flannel kube-flannel-ds -o jsonpath='{.status.numberReady}' | grep -q '[0-9]'; then
-        READY=$(kubectl get daemonset -n kube-flannel kube-flannel-ds -o jsonpath='{.status.numberReady}')
-        DESIRED=$(kubectl get daemonset -n kube-flannel kube-flannel-ds -o jsonpath='{.status.desiredNumberScheduled}')
-        if [ "$READY" = "$DESIRED" ] && [ "$READY" -gt "0" ]; then
-          echo "Flannel DaemonSet is ready: $READY/$DESIRED"
-          exit 0
-        fi
-      fi
-      echo "Waiting for Flannel DaemonSet... ($i/30)"
-      sleep 10
-    done
-    echo "Flannel DaemonSet not ready after 5 minutes"
-    exit 1
+    READY=$(kubectl get daemonset -n kube-flannel kube-flannel-ds -o jsonpath='{.status.numberReady}' 2>/dev/null || echo "0")
+    DESIRED=$(kubectl get daemonset -n kube-flannel kube-flannel-ds -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo "1")
+    if [ "$READY" = "$DESIRED" ] && [ "$READY" -gt "0" ]; then
+      echo "Flannel DaemonSet is ready: $READY/$DESIRED"
+      exit 0
+    else
+      echo "Flannel DaemonSet not ready: $READY/$DESIRED"
+      exit 1
+    fi
   become_user: "{{ ansible_user }}"
   become: no
+  register: flannel_daemonset_status
+  until: flannel_daemonset_status.rc == 0
+  retries: 30
+  delay: 10
   ignore_errors: yes
   
 - name: Wait for all nodes to be ready
   shell: |
-    for i in {1..60}; do
-      NOT_READY=$(kubectl get nodes --no-headers | grep -v Ready | wc -l)
-      if [ "$NOT_READY" -eq "0" ]; then
-        echo "All nodes are ready"
-        kubectl get nodes
-        exit 0
-      fi
-      echo "Waiting for nodes to be ready... ($i/60) - $NOT_READY nodes not ready"
-      sleep 10
-    done
-    echo "Some nodes still not ready after 10 minutes"
-    kubectl get nodes
-    exit 1
+    NOT_READY=$(kubectl get nodes --no-headers | grep -v Ready | wc -l)
+    if [ "$NOT_READY" -eq "0" ]; then
+      echo "All nodes are ready"
+      kubectl get nodes
+      exit 0
+    else
+      echo "Waiting for nodes to be ready - $NOT_READY nodes not ready"
+      kubectl get nodes
+      exit 1
+    fi
   become_user: "{{ ansible_user }}"
   become: no
+  register: nodes_ready_status
+  until: nodes_ready_status.rc == 0
+  retries: 60
+  delay: 10
   ignore_errors: yes
   
 - name: Wait for CoreDNS pods to be ready
   shell: |
-    for i in {1..30}; do
-      NOT_READY=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers | grep -v Running | wc -l)
-      if [ "$NOT_READY" -eq "0" ]; then
-        echo "CoreDNS pods are ready"
-        kubectl get pods -n kube-system -l k8s-app=kube-dns
-        exit 0
-      fi
-      echo "Waiting for CoreDNS pods... ($i/30) - $NOT_READY pods not ready"
-      sleep 10
-    done
-    echo "CoreDNS pods not ready after 5 minutes"
-    kubectl get pods -n kube-system -l k8s-app=kube-dns
-    exit 1
+    NOT_READY=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers | grep -v Running | wc -l)
+    if [ "$NOT_READY" -eq "0" ]; then
+      echo "CoreDNS pods are ready"
+      kubectl get pods -n kube-system -l k8s-app=kube-dns
+      exit 0
+    else
+      echo "Waiting for CoreDNS pods - $NOT_READY pods not ready"
+      kubectl get pods -n kube-system -l k8s-app=kube-dns
+      exit 1
+    fi
   become_user: "{{ ansible_user }}"
   become: no
+  register: coredns_status
+  until: coredns_status.rc == 0
+  retries: 30
+  delay: 10
   ignore_errors: yes
 
