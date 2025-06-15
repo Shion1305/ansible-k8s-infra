@@ -6,12 +6,24 @@
   register: flannel_deployment
   changed_when: "'created' in flannel_deployment.stdout or 'configured' in flannel_deployment.stdout"
   
-- name: Check if Flannel configuration exists
-  shell: kubectl get daemonset -n kube-flannel kube-flannel-ds
+- name: Verify Flannel DaemonSet has been created
+  shell: kubectl get daemonset -n kube-flannel kube-flannel-ds -o name 2>/dev/null || echo ""
   become_user: "{{ ansible_user }}"
   become: no
-  register: flannel_exists
-  changed_when: false
+  register: flannel_daemonset_exists
+  retries: 10
+  delay: 5
+  until: flannel_daemonset_exists.stdout != ""
+  ignore_errors: yes
+
+- name: Wait for some Flannel pods to start appearing
+  shell: kubectl get pods -n kube-flannel | grep -c kube-flannel || echo "0"
+  become_user: "{{ ansible_user }}"
+  become: no
+  register: flannel_pod_count
+  retries: 15
+  delay: 5
+  until: flannel_pod_count.stdout | int > 0
   ignore_errors: yes
   
 - name: Wait for all nodes to be ready
@@ -53,4 +65,28 @@
   retries: 30
   delay: 10
   ignore_errors: yes
+
+- name: Save Flannel logs for troubleshooting if needed
+  shell: |
+    mkdir -p /tmp/k8s-deployment-logs
+    kubectl logs -n kube-flannel -l app=flannel --tail=100 > /tmp/k8s-deployment-logs/flannel.log 2>&1 || true
+    echo "Logs saved to /tmp/k8s-deployment-logs/flannel.log"
+  become_user: "{{ ansible_user }}"
+  become: no
+  changed_when: false
+  ignore_errors: yes
+
+- name: Verify all CNI components are working correctly
+  shell: |
+    echo "=== Verifying CNI Components ==="
+    echo "Checking Flannel pods:"
+    kubectl get pods -n kube-flannel -o wide
+    echo "\nChecking CoreDNS pods:"
+    kubectl get pods -n kube-system -l k8s-app=kube-dns -o wide
+    echo "\nChecking Node status:"
+    kubectl get nodes -o wide
+  become_user: "{{ ansible_user }}"
+  become: no
+  register: cni_status
+  changed_when: false
 

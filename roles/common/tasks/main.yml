@@ -46,7 +46,30 @@
     - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
     - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
     - { name: 'net.ipv4.ip_forward', value: '1' }
-    
+
+- name: Fix DNS resolution for containerd (non-systemd-resolved systems)
+  block:
+    - name: Check if systemd-resolved is running
+      systemd:
+        name: systemd-resolved
+      register: systemd_resolved_status
+      ignore_errors: yes
+
+    - name: Create systemd resolve directory
+      file:
+        path: /run/systemd/resolve
+        state: directory
+        mode: '0755'
+      when: systemd_resolved_status.status.ActiveState|default('') != 'active'
+
+    - name: Create resolv.conf symlink for containerd
+      file:
+        src: /etc/resolv.conf
+        dest: /run/systemd/resolve/resolv.conf
+        state: link
+        force: yes
+      when: systemd_resolved_status.status.ActiveState|default('') != 'active'
+
 - name: Install CNI plugins
   block:
     - name: Download CNI plugins
