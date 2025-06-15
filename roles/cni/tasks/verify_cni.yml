@@ -1,19 +1,36 @@
 ---
-- name: Deploy Flannel CNI using kubectl
-  shell: kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+# CNI verification tasks
+# These tasks are intended to be run after nodes are ready
+
+- name: Wait for Flannel pods to be ready
+  shell: kubectl get pods -n kube-flannel -o jsonpath='{.items[*].status.phase}' | grep -v Running | wc -l
   become_user: "{{ ansible_user }}"
   become: no
-  register: flannel_deployment
-  changed_when: "'created' in flannel_deployment.stdout or 'configured' in flannel_deployment.stdout"
-  
-- name: Check if Flannel configuration exists
-  shell: kubectl get daemonset -n kube-flannel kube-flannel-ds
-  become_user: "{{ ansible_user }}"
-  become: no
-  register: flannel_exists
-  changed_when: false
+  register: flannel_pod_status
+  until: flannel_pod_status.stdout == "0"
+  retries: 30
+  delay: 10
   ignore_errors: yes
-  
+
+- name: Wait for Flannel DaemonSet to be ready
+  shell: |
+    READY=$(kubectl get daemonset -n kube-flannel kube-flannel-ds -o jsonpath='{.status.numberReady}' 2>/dev/null || echo "0")
+    DESIRED=$(kubectl get daemonset -n kube-flannel kube-flannel-ds -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo "1")
+    if [ "$READY" = "$DESIRED" ] && [ "$READY" -gt "0" ]; then
+      echo "Flannel DaemonSet is ready: $READY/$DESIRED"
+      exit 0
+    else
+      echo "Flannel DaemonSet not ready: $READY/$DESIRED"
+      exit 1
+    fi
+  become_user: "{{ ansible_user }}"
+  become: no
+  register: flannel_daemonset_status
+  until: flannel_daemonset_status.rc == 0
+  retries: 30
+  delay: 10
+  ignore_errors: yes
+
 - name: Wait for all nodes to be ready
   shell: |
     NOT_READY=$(kubectl get nodes --no-headers | grep -v Ready | wc -l)
@@ -33,7 +50,7 @@
   retries: 60
   delay: 10
   ignore_errors: yes
-  
+
 - name: Wait for CoreDNS pods to be ready
   shell: |
     NOT_READY=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers | grep -v Running | wc -l)
@@ -53,4 +70,3 @@
   retries: 30
   delay: 10
   ignore_errors: yes
-

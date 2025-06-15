@@ -270,6 +270,15 @@
         state: started
         enabled: yes
     
+- name: Verify CNI Deployment
+  hosts: control_plane
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name: Include CNI verification tasks
+      include_tasks: roles/cni/tasks/verify_cni.yml
+
 - name: Verify Deployment
   hosts: control_plane
   become: yes
