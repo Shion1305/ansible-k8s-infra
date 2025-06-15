@@ -2,11 +2,17 @@
 # Reset Kubernetes Cluster
 # WARNING: This will completely destroy the existing cluster!
 
-- name: Reset Kubernetes Cluster
-  hosts: all
+- name: Reset Kubernetes Control Plane
+  hosts: control_plane
   become: yes
   gather_facts: no
   serial: 1
+
+- name: Reset Kubernetes Worker Nodes (Concurrent)
+  hosts: workers
+  become: yes
+  gather_facts: no
+  # Process all workers in parallel
   
   tasks:
     - name: Stop services before reset

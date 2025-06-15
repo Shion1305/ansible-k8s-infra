@@ -264,11 +264,21 @@
   gather_facts: no
   
   tasks:
-    - name: Start kubelet after CNI deployment
+    - name: Restart kubelet on worker nodes after CNI deployment
       systemd:
         name: kubelet
-        state: started
+        state: restarted
         enabled: yes
+
+    - name: Verify kubelet is running
+      command: systemctl status kubelet
+      register: kubelet_status
+      changed_when: false
+
+    - name: Show kubelet status
+      debug:
+        msg: "{{ kubelet_status.stdout_lines | default('Kubelet status unavailable') }}"
+      when: kubelet_status is defined
     
 - name: Verify CNI Deployment
   hosts: control_plane
