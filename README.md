@@ -151,14 +151,43 @@ ansible-k8s-wireguard/
 
 ## Operations
 
-### Verify Cluster Status
+### Quick Verification
+
+```bash
+# Run comprehensive cluster verification
+ansible-playbook -i inventory.yml verify.yml
+
+# Basic connectivity check
+ansible all -i inventory.yml -m ping
+```
+
+### Maintenance Operations
+
+```bash
+# Run maintenance playbook for common issues
+ansible-playbook -i inventory.yml maintenance.yml --tags=health-check
+
+# Clean CNI bridge interfaces (fixes connectivity issues)
+ansible-playbook -i inventory.yml maintenance.yml --tags=clean-cni
+
+# Verify WireGuard status across all nodes
+ansible-playbook -i inventory.yml maintenance.yml --tags=wireguard-check
+
+# Update cluster components
+ansible-playbook -i inventory.yml maintenance.yml --tags=update
+```
+
+### Manual Status Checks
 
 ```bash
 # Check all nodes
-ansible control_plane -i inventory.yml -m shell -a "kubectl get nodes -o wide" -b --become-user=ubuntu
+ansible control_plane -i inventory.yml -m shell -a "kubectl get nodes -o wide" --become-user=ubuntu
 
 # Check system pods
-ansible control_plane -i inventory.yml -m shell -a "kubectl get pods --all-namespaces" -b --become-user=ubuntu
+ansible control_plane -i inventory.yml -m shell -a "kubectl get pods --all-namespaces" --become-user=ubuntu
+
+# Check WireGuard connectivity
+ansible all -i inventory.yml -m shell -a "wg show" --become
 ```
 
 ### Reset Cluster
@@ -181,6 +210,9 @@ ansible-playbook -i inventory.yml site.yml --limit=workers
 
 # Only deploy CNI
 ansible-playbook -i inventory.yml site.yml --tags=cni
+
+# Deploy on specific node only
+ansible-playbook -i inventory.yml site.yml --limit=cm4
 ```
 
 ## Customization

@@ -9,57 +9,60 @@
   serial: 1
   
   tasks:
-    - name: Drain and delete node from cluster
-      kubernetes.core.k8s:
-        api_version: v1
-        kind: Node
-        name: "{{ inventory_hostname }}"
-        state: absent
-      delegate_to: "{{ groups['control_plane'][0] }}"
-      become_user: "{{ hostvars[groups['control_plane'][0]]['ansible_user'] }}"
-      become: no
+    - name: Stop services before reset
+      systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      loop:
+        - kubelet
+        - containerd
       ignore_errors: yes
-      when: inventory_hostname in groups['workers']
+      
+    - name: Stop WireGuard service
+      systemd:
+        name: "wg-quick@{{ wireguard_interface | default('wg0') }}"
+        state: stopped
+        enabled: no
+      ignore_errors: yes
       
     - name: Reset Kubernetes configuration
       command: kubeadm reset --force
       ignore_errors: yes
       
-    - name: Stop WireGuard service
-      systemd:
-        name: "wg-quick@{{ wireguard_interface }}"
-        state: stopped
-        enabled: no
+    - name: Remove CNI bridge interfaces
+      shell: |
+        for bridge in cni0 docker0 flannel.1; do
+          if ip link show $bridge >/dev/null 2>&1; then
+            echo "Removing bridge: $bridge"
+            ip link delete $bridge
+          fi
+        done
       ignore_errors: yes
       
     - name: Remove WireGuard configuration
       file:
-        path: "/etc/wireguard/{{ wireguard_interface }}.conf"
+        path: "/etc/wireguard/{{ wireguard_interface | default('wg0') }}.conf"
         state: absent
+      ignore_errors: yes
         
     - name: Unhold Kubernetes packages
-      dpkg_selections:
-        name: "{{ item }}"
-        selection: install
-      loop:
-        - kubelet
-        - kubeadm
-        - kubectl
+      shell: |
+        apt-mark unhold kubelet kubeadm kubectl || true
+        dpkg --configure -a || true
       ignore_errors: yes
         
     - name: Remove Kubernetes packages
-      apt:
-        name:
-          - kubelet
-          - kubeadm
-          - kubectl
-        state: absent
-        allow_change_held_packages: yes
+      shell: |
+        apt-get remove -y kubelet kubeadm kubectl kubernetes-cni || true
+        apt-get autoremove -y || true
+      ignore_errors: yes
         
-    - name: Remove containerd
-      package:
-        name: containerd
-        state: absent
+    - name: Remove containerd and dependencies
+      shell: |
+        apt-get remove -y containerd containerd.io docker-ce docker-ce-cli || true
+        apt-get autoremove -y || true
+      ignore_errors: yes
         
     - name: Remove WireGuard
       package:
@@ -67,11 +70,13 @@
           - wireguard
           - wireguard-tools
         state: absent
+      ignore_errors: yes
         
-    - name: Clean up directories
-      file:
-        path: "{{ item }}"
-        state: absent
+    - name: Force clean up directories
+      shell: |
+        rm -rf {{ item }} || true
+        umount {{ item }}/* 2>/dev/null || true
+        rm -rf {{ item }} || true
       loop:
         - /etc/kubernetes
         - /var/lib/kubelet
@@ -79,15 +84,33 @@
         - /etc/cni
         - /opt/cni
         - /var/lib/containerd
+        - /var/run/secrets
+        - /var/lib/cni
+      ignore_errors: yes
         
-    - name: Clean up user .kube directory
-      file:
-        path: "/home/{{ ansible_user }}/.kube"
-        state: absent
-      become: no
+    - name: Clean up user directories safely
+      shell: |
+        rm -rf /home/*/cni.csr 2>/dev/null || true
+        rm -rf /home/*/.kube 2>/dev/null || true
+        rm -rf /root/.kube 2>/dev/null || true
+      ignore_errors: yes
         
-    - name: Remove iptables rules
-      command: iptables -F
+    - name: Reset UFW to defaults (preserving SSH)
+      shell: |
+        # Reset UFW but do not disable to preserve connectivity
+        ufw --force reset || true
+        
+        # Ensure SSH is allowed before enabling
+        ufw allow 22/tcp comment "SSH access" || true
+        
+        # Set default policies
+        ufw default deny incoming || true
+        ufw default allow outgoing || true
+        
+        # Enable UFW safely
+        ufw --force enable || true
+        
+        echo "UFW reset to defaults with SSH preserved"
       ignore_errors: yes
       
     - name: Remove hosts entry for worker nodes
@@ -96,9 +119,11 @@
         regexp: '^.*k8s\.shion1305\.com.*$'
         state: absent
       when: inventory_hostname in groups['workers']
+      ignore_errors: yes
       
-    - name: Reboot system
-      reboot:
-        reboot_timeout: 300
-      when: ansible_reboot_required | default(false)
+    - name: Clean up systemd services
+      shell: |
+        systemctl daemon-reload || true
+        systemctl reset-failed || true
+      ignore_errors: yes
 

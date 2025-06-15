@@ -16,29 +16,28 @@
   
 - name: Create .kube directory
   file:
-    path: "{{ ansible_env.HOME }}/.kube"
+    path: "/home/{{ ansible_user }}/.kube"
     state: directory
     mode: '0700'
-  become_user: "{{ ansible_user }}"
-  become: no
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
   
 - name: Copy kubeconfig to user home
   copy:
     src: /etc/kubernetes/admin.conf
-    dest: "{{ ansible_env.HOME }}/.kube/config"
+    dest: "/home/{{ ansible_user }}/.kube/config"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: '0600'
     remote_src: yes
-  become: no
   
 - name: Update kubeconfig server endpoint
   lineinfile:
-    path: "{{ ansible_env.HOME }}/.kube/config"
+    path: "/home/{{ ansible_user }}/.kube/config"
     regexp: 'server: https://.*:6443'
     line: "    server: https://{{ control_plane_endpoint }}"
-  become_user: "{{ ansible_user }}"
-  become: no
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
   
 - name: Generate join command for worker nodes
   command: kubeadm token create --print-join-command

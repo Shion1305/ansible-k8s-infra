@@ -59,24 +59,6 @@
   debug:
     msg: "{{ wg_status.stdout_lines }}"
     
-- name: Add iptables rules for WireGuard on control plane
-  iptables:
-    chain: "{{ item.chain }}"
-    in_interface: "{{ wireguard_interface }}"
-    jump: ACCEPT
-    action: insert
-    rule_num: 1
-  loop:
-    - { chain: 'INPUT' }
-    - { chain: 'FORWARD' }
-  when: inventory_hostname in groups['control_plane']
-  
-- name: Add iptables rules for WireGuard output on control plane
-  iptables:
-    chain: FORWARD
-    out_interface: "{{ wireguard_interface }}"
-    jump: ACCEPT
-    action: insert
-    rule_num: 1
-  when: inventory_hostname in groups['control_plane']
+# Firewall rules are now handled by UFW in the main playbook
+# This ensures consistent firewall management across all nodes
 

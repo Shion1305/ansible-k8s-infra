@@ -1,51 +1,6 @@
 ---
-- name: Install UFW firewall
-  package:
-    name: ufw
-    state: present
-  when: has_ufw is defined and has_ufw
-  
-- name: Configure UFW firewall for worker nodes
-  block:
-    - name: Allow SSH access
-      ufw:
-        rule: allow
-        port: '22'
-        proto: tcp
-        comment: "SSH access"
-        
-    - name: Allow kubelet API
-      ufw:
-        rule: allow
-        port: '10250'
-        proto: tcp
-        comment: "Kubernetes kubelet"
-        
-    - name: Allow NodePort services
-      ufw:
-        rule: allow
-        port: '30000:32767'
-        proto: tcp
-        comment: "Kubernetes NodePort services"
-        
-    - name: Allow WireGuard interface input
-      ufw:
-        rule: allow
-        direction: in
-        interface: "{{ wireguard_interface }}"
-        
-    - name: Allow WireGuard interface output
-      ufw:
-        rule: allow
-        direction: out
-        interface: "{{ wireguard_interface }}"
-        
-    - name: Enable UFW firewall
-      ufw:
-        state: enabled
-        policy: deny
-        direction: incoming
-  when: has_ufw is defined and has_ufw
+# UFW firewall configuration is now handled in the main site.yml playbook
+# This avoids duplication and ensures consistent firewall management
   
 - name: Add DNS override for WireGuard routing
   lineinfile:
@@ -53,6 +8,26 @@
     regexp: '^.*k8s\.shion1305\.com.*$'
     line: "{{ hostvars[groups['control_plane'][0]]['wireguard_ip'] }} {{ hostvars[groups['control_plane'][0]]['ansible_host'] }}"
     backup: yes
+  
+- name: Clean up old CNI network interfaces
+  shell: |
+    for bridge in cni0 docker0 flannel.1; do
+      if ip link show $bridge >/dev/null 2>&1; then
+        echo "Removing bridge: $bridge"
+        ip link delete $bridge
+      fi
+    done
+  ignore_errors: yes
+  
+- name: Remove stale CNI network configuration
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/cni/net.d/10-flannel.conflist
+    - /etc/cni/net.d/10-containerd-net.conflist
+    - /var/lib/cni/networks
+  ignore_errors: yes
   
 - name: Check if node is already joined
   stat:

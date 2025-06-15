@@ -86,26 +86,126 @@
         enabled: yes
         state: started
         
-    - name: Add iptables rules for WireGuard on control plane
-      iptables:
-        chain: "{{ item.chain }}"
-        in_interface: "{{ wireguard_interface }}"
-        jump: ACCEPT
-        action: insert
-        rule_num: 1
-      loop:
-        - { chain: 'INPUT' }
-        - { chain: 'FORWARD' }
+    - name: Install and configure UFW on all nodes
+      package:
+        name: ufw
+        state: present
+        
+    - name: Configure UFW for control plane
+      block:
+        - name: Allow SSH access
+          ufw:
+            rule: allow
+            port: '22'
+            proto: tcp
+            comment: "SSH access"
+            
+        - name: Allow Kubernetes API server
+          ufw:
+            rule: allow
+            port: '6443'
+            proto: tcp
+            comment: "Kubernetes API server"
+            
+        - name: Allow etcd server client API
+          ufw:
+            rule: allow
+            port: '2379:2380'
+            proto: tcp
+            comment: "etcd server client API"
+            
+        - name: Allow kubelet API
+          ufw:
+            rule: allow
+            port: '10250'
+            proto: tcp
+            comment: "Kubernetes kubelet"
+            
+        - name: Allow kube-scheduler
+          ufw:
+            rule: allow
+            port: '10259'
+            proto: tcp
+            comment: "kube-scheduler"
+            
+        - name: Allow kube-controller-manager
+          ufw:
+            rule: allow
+            port: '10257'
+            proto: tcp
+            comment: "kube-controller-manager"
+            
+        - name: Allow WireGuard UDP port
+          ufw:
+            rule: allow
+            port: "{{ wireguard_port }}"
+            proto: udp
+            comment: "WireGuard VPN"
+            
+        - name: Allow WireGuard interface traffic
+          ufw:
+            rule: allow
+            direction: in
+            interface: "{{ wireguard_interface }}"
+            comment: "WireGuard interface input"
+            
+        - name: Allow WireGuard interface output
+          ufw:
+            rule: allow
+            direction: out
+            interface: "{{ wireguard_interface }}"
+            comment: "WireGuard interface output"
+            
+        - name: Enable UFW firewall
+          ufw:
+            state: enabled
+            policy: deny
+            direction: incoming
       when: inventory_hostname in groups['control_plane']
       
-    - name: Add iptables rules for WireGuard output on control plane
-      iptables:
-        chain: FORWARD
-        out_interface: "{{ wireguard_interface }}"
-        jump: ACCEPT
-        action: insert
-        rule_num: 1
-      when: inventory_hostname in groups['control_plane']
+    - name: Configure UFW for worker nodes
+      block:
+        - name: Allow SSH access
+          ufw:
+            rule: allow
+            port: '22'
+            proto: tcp
+            comment: "SSH access"
+            
+        - name: Allow kubelet API
+          ufw:
+            rule: allow
+            port: '10250'
+            proto: tcp
+            comment: "Kubernetes kubelet"
+            
+        - name: Allow NodePort services
+          ufw:
+            rule: allow
+            port: '30000:32767'
+            proto: tcp
+            comment: "Kubernetes NodePort services"
+            
+        - name: Allow WireGuard interface input
+          ufw:
+            rule: allow
+            direction: in
+            interface: "{{ wireguard_interface }}"
+            comment: "WireGuard interface input"
+            
+        - name: Allow WireGuard interface output
+          ufw:
+            rule: allow
+            direction: out
+            interface: "{{ wireguard_interface }}"
+            comment: "WireGuard interface output"
+            
+        - name: Enable UFW firewall
+          ufw:
+            state: enabled
+            policy: deny
+            direction: incoming
+      when: inventory_hostname in groups['workers']
       
   handlers:
     - name: restart wireguard
@@ -129,13 +229,46 @@
   roles:
     - worker
 
+- name: Prepare CNI Environment
+  hosts: workers
+  become: yes
+  gather_facts: no
+  
+  tasks:
+    - name: Remove old CNI bridge interfaces that might conflict
+      shell: |
+        for bridge in cni0 docker0 flannel.1; do
+          if ip link show $bridge >/dev/null 2>&1; then
+            ip link delete $bridge
+          fi
+        done
+      ignore_errors: yes
+      
+    - name: Stop kubelet before CNI deployment
+      systemd:
+        name: kubelet
+        state: stopped
+      ignore_errors: yes
+
 - name: Deploy CNI
-  hosts: all
+  hosts: control_plane
   become: yes
   gather_facts: no
   
   roles:
     - cni
+    
+- name: Restart workers after CNI deployment
+  hosts: workers
+  become: yes
+  gather_facts: no
+  
+  tasks:
+    - name: Start kubelet after CNI deployment
+      systemd:
+        name: kubelet
+        state: started
+        enabled: yes
     
 - name: Verify Deployment
   hosts: control_plane
