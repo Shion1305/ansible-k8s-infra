@@ -12,7 +12,7 @@
       ansible.builtin.systemd:
         name: kubelet
         state: stopped
-      ignore_errors: true
+      failed_when: false
 
     - name: Remove CNI bridge interfaces
       ansible.builtin.shell: |
@@ -22,7 +22,9 @@
             ip link delete $bridge
           fi
         done
-      ignore_errors: true
+      register: bridge_removal
+      changed_when: "'Removing bridge:' in bridge_removal.stdout"
+      failed_when: false
 
     - name: Clear CNI network state
       ansible.builtin.file:
@@ -31,7 +33,7 @@
       loop:
         - /var/lib/cni/networks
         - /var/lib/cni/results
-      ignore_errors: true
+      failed_when: false
 
     - name: Start kubelet service
       ansible.builtin.systemd:
@@ -116,7 +118,9 @@
         apt-get install -y kubelet kubeadm kubectl
         apt-mark hold kubelet kubeadm kubectl
       when: ansible_os_family == "Debian"
-      ignore_errors: true
+      register: apt_upgrade_status
+      changed_when: "'0 upgraded, 0 newly installed' not in apt_upgrade_status.stdout"
+      failed_when: false
 
 - name: Restart Cluster Services
   hosts: all
@@ -143,4 +147,5 @@
       delay: 10
       delegate_to: "{{ groups['control_plane'][0] }}"
       become: false
+      changed_when: false
       when: inventory_hostname in groups['control_plane']
