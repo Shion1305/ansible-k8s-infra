@@ -1,64 +1,65 @@
 ---
 - name: Install WireGuard
-  package:
+  ansible.builtin.package:
     name:
       - wireguard
       - wireguard-tools
     state: present
-    
+
 - name: Resolve control plane public IP
-  set_fact:
-    control_plane_public_ip: "{{ lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host']) }}"
+  ansible.builtin.set_fact:
+    wireguard_control_plane_public_ip: "{{ lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host']) }}"
   run_once: true
   delegate_to: localhost
   when: inventory_hostname in groups['control_plane'] or inventory_hostname in groups['workers']
-    
+
 - name: Generate WireGuard private key
-  shell: wg genkey
-  register: private_key
+  ansible.builtin.command: wg genkey
+  register: wireguard_private_key
   changed_when: false
   no_log: true
-  
+
 - name: Generate WireGuard public key
-  shell: echo "{{ private_key.stdout }}" | wg pubkey
-  register: public_key
+  ansible.builtin.shell: |
+    set -o pipefail
+    echo "{{ wireguard_private_key.stdout }}" | wg pubkey
+  register: wireguard_public_key
   changed_when: false
   no_log: true
-  
+
 - name: Store keys in facts
-  set_fact:
-    wireguard_private_key: "{{ private_key.stdout }}"
-    wireguard_public_key: "{{ public_key.stdout }}"
+  ansible.builtin.set_fact:
+    wireguard_private_key_fact: "{{ wireguard_private_key.stdout }}"
+    wireguard_public_key_fact: "{{ wireguard_public_key.stdout }}"
   no_log: true
-  
+
 - name: Create WireGuard configuration
-  template:
+  ansible.builtin.template:
     src: "{{ wireguard_interface }}.conf.j2"
     dest: "/etc/wireguard/{{ wireguard_interface }}.conf"
-    mode: '0600'
-    backup: yes
+    mode: "0600"
+    backup: true
   notify: restart wireguard
-  
+
 - name: Enable and start WireGuard service
-  systemd:
+  ansible.builtin.systemd:
     name: "wg-quick@{{ wireguard_interface }}"
-    enabled: yes
+    enabled: true
     state: started
-    
+
 - name: Wait for WireGuard interface to be up
-  wait_for:
+  ansible.builtin.wait_for:
     timeout: 30
   delegate_to: localhost
-  
+
 - name: Verify WireGuard interface
-  command: "wg show {{ wireguard_interface }}"
-  register: wg_status
+  ansible.builtin.command: "wg show {{ wireguard_interface }}"
+  register: wireguard_wg_status
   changed_when: false
-  
+
 - name: Display WireGuard status
-  debug:
-    msg: "{{ wg_status.stdout_lines }}"
-    
+  ansible.builtin.debug:
+    msg: "{{ wireguard_wg_status.stdout_lines }}"
+
 # Firewall rules are now handled by UFW in the main playbook
 # This ensures consistent firewall management across all nodes
-

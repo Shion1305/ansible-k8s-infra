@@ -1,4 +1,4 @@
-.PHONY: help install deploy verify clean reset maintenance test ping troubleshoot fix-nodes
+.PHONY: help install deploy verify clean reset maintenance test ping troubleshoot fix-nodes lint format
 
 # Default target
 help:
@@ -15,6 +15,8 @@ help:
 	@echo "  make reset         - Reset the entire cluster (WARNING: destructive)"
 	@echo "  make test          - Run connectivity and health tests"
 	@echo "  make clean         - Clean up CNI bridges and restart services"
+	@echo "  make lint          - Run ansible-lint on playbooks"
+	@echo "  make format        - Auto-fix ansible formatting issues"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make deploy        # Full cluster deployment"
@@ -64,6 +66,16 @@ clean:
 	@echo "Cleaning CNI interfaces and restarting services..."
 	ansible-playbook -i inventory.yml maintenance.yml --tags=clean-cni
 	@echo "✅ Cleanup complete"
+
+lint:
+	@echo "Running ansible-lint on playbooks..."
+	uv run ansible-lint
+	@echo "✅ Lint check complete"
+
+format:
+	@echo "Auto-fixing ansible formatting issues..."
+	uv run ansible-lint --fix
+	@echo "✅ Format complete"
 
 # Quick operations
 status:

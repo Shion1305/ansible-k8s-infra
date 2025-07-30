@@ -1,85 +1,93 @@
 ---
 - name: Add Kubernetes APT repository key
-  apt_key:
+  ansible.builtin.apt_key:
     url: https://pkgs.k8s.io/core:/stable:/v1.33/deb/Release.key
     state: present
-    
+
 - name: Add Kubernetes APT repository
-  apt_repository:
+  ansible.builtin.apt_repository:
     repo: "deb https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /"
     state: present
-    
+
 - name: Install containerd
-  package:
+  ansible.builtin.package:
     name: containerd
     state: present
-    
+
 - name: Create containerd configuration directory
-  file:
+  ansible.builtin.file:
     path: /etc/containerd
     state: directory
-    mode: '0755'
-    
+    mode: "0755"
+
 - name: Generate containerd configuration
-  shell: containerd config default
-  register: containerd_config
+  ansible.builtin.command: containerd config default
+  register: kubernetes_containerd_config
   changed_when: false
-  
+
 - name: Write containerd configuration
-  copy:
-    content: "{{ containerd_config.stdout }}"
+  ansible.builtin.copy:
+    content: "{{ kubernetes_containerd_config.stdout }}"
     dest: /etc/containerd/config.toml
-    backup: yes
+    mode: "0644"
+    owner: root
+    group: root
+    backup: true
   notify: restart containerd
-  
+
 - name: Enable systemd cgroups in containerd
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/containerd/config.toml
-    regexp: '^\s*SystemdCgroup = false'
-    line: '            SystemdCgroup = true'
+    regexp: "^\\s*SystemdCgroup = false"
+    line: "            SystemdCgroup = true"
   notify: restart containerd
-  
+
 - name: Install Kubernetes packages
-  package:
+  ansible.builtin.package:
     name:
       - kubelet={{ kubernetes_version }}
       - kubeadm={{ kubernetes_version }}
       - kubectl={{ kubernetes_version }}
     state: present
-    
+
 - name: Hold Kubernetes packages
-  dpkg_selections:
+  ansible.builtin.dpkg_selections:
     name: "{{ item }}"
     selection: hold
   loop:
     - kubelet
     - kubeadm
     - kubectl
-    
+
 - name: Configure kubelet node IP
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/default/kubelet
-    regexp: '^KUBELET_EXTRA_ARGS='
+    regexp: "^KUBELET_EXTRA_ARGS="
     line: 'KUBELET_EXTRA_ARGS="--node-ip={{ wireguard_ip }}"'
-    create: yes
+    mode: "0644"
+    owner: root
+    group: root
+    create: true
   notify: restart kubelet
   when: inventory_hostname in groups['workers']
-  
+
 - name: Configure kubelet node IP for control plane
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/default/kubelet
-    regexp: '^KUBELET_EXTRA_ARGS='
+    regexp: "^KUBELET_EXTRA_ARGS="
     line: 'KUBELET_EXTRA_ARGS="--node-ip={{ local_ip }}"'
-    create: yes
+    mode: "0644"
+    owner: root
+    group: root
+    create: true
   notify: restart kubelet
   when: inventory_hostname in groups['control_plane']
-  
+
 - name: Enable and start services
-  systemd:
+  ansible.builtin.systemd:
     name: "{{ item }}"
-    enabled: yes
+    enabled: true
     state: started
   loop:
     - containerd
     - kubelet
-

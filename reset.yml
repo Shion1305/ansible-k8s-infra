@@ -4,82 +4,99 @@
 
 - name: Reset Kubernetes Control Plane
   hosts: control_plane
-  become: yes
-  gather_facts: no
+  become: true
+  gather_facts: false
   serial: 1
 
 - name: Reset Kubernetes Worker Nodes (Concurrent)
   hosts: workers
-  become: yes
-  gather_facts: no
+  become: true
+  gather_facts: false
   # Process all workers in parallel
-  
+
   tasks:
     - name: Stop services before reset
-      systemd:
+      ansible.builtin.systemd:
         name: "{{ item }}"
         state: stopped
-        enabled: no
+        enabled: false
       loop:
         - kubelet
         - containerd
-      ignore_errors: yes
-      
+      failed_when: false
+
     - name: Stop WireGuard service
-      systemd:
+      ansible.builtin.systemd:
         name: "wg-quick@{{ wireguard_interface | default('wg0') }}"
         state: stopped
-        enabled: no
-      ignore_errors: yes
-      
+        enabled: false
+      failed_when: false
+
     - name: Reset Kubernetes configuration
-      command: kubeadm reset --force
-      ignore_errors: yes
-      
+      ansible.builtin.command: kubeadm reset --force
+      register: kubeadm_reset_result
+      changed_when: "'The reset process does not clean' in kubeadm_reset_result.stdout or kubeadm_reset_result.rc == 0"
+      failed_when: false
+
     - name: Remove CNI bridge interfaces
-      shell: |
+      ansible.builtin.shell: |
         for bridge in cni0 docker0 flannel.1; do
           if ip link show $bridge >/dev/null 2>&1; then
             echo "Removing bridge: $bridge"
             ip link delete $bridge
           fi
         done
-      ignore_errors: yes
-      
+      register: bridge_removal_reset
+      changed_when: "'Removing bridge:' in bridge_removal_reset.stdout"
+      failed_when: false
+
     - name: Remove WireGuard configuration
-      file:
+      ansible.builtin.file:
         path: "/etc/wireguard/{{ wireguard_interface | default('wg0') }}.conf"
         state: absent
-      ignore_errors: yes
-        
+      failed_when: false
+
     - name: Unhold Kubernetes packages
-      shell: |
+      ansible.builtin.shell: |
         apt-mark unhold kubelet kubeadm kubectl || true
         dpkg --configure -a || true
-      ignore_errors: yes
-        
+      changed_when: false
+      failed_when: false
+
     - name: Remove Kubernetes packages
-      shell: |
-        apt-get remove -y kubelet kubeadm kubectl kubernetes-cni || true
-        apt-get autoremove -y || true
-      ignore_errors: yes
-        
+      ansible.builtin.apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+          - kubernetes-cni
+        state: absent
+        autoremove: true
+        purge: true
+      failed_when: false
+
     - name: Remove containerd and dependencies
-      shell: |
-        apt-get remove -y containerd containerd.io docker-ce docker-ce-cli || true
-        apt-get autoremove -y || true
-      ignore_errors: yes
-        
+      ansible.builtin.apt:
+        name:
+          - containerd
+          - containerd.io
+          - docker-ce
+          - docker-ce-cli
+        state: absent
+        autoremove: true
+        purge: true
+      failed_when: false
+
     - name: Remove WireGuard
-      package:
+      ansible.builtin.package:
         name:
           - wireguard
           - wireguard-tools
         state: absent
-      ignore_errors: yes
-        
+      failed_when: false
+
     - name: Force clean up directories
-      shell: |
+      ansible.builtin.shell: |
         rm -rf {{ item }} || true
         umount {{ item }}/* 2>/dev/null || true
         rm -rf {{ item }} || true
@@ -92,54 +109,61 @@
         - /var/lib/containerd
         - /var/run/secrets
         - /var/lib/cni
-      ignore_errors: yes
-        
+      changed_when: false
+      failed_when: false
+
     - name: Clean up user directories safely
-      shell: |
+      ansible.builtin.shell: |
         rm -rf /home/*/cni.csr 2>/dev/null || true
         rm -rf /home/*/.kube 2>/dev/null || true
         rm -rf /root/.kube 2>/dev/null || true
-      ignore_errors: yes
-        
+      changed_when: false
+      failed_when: false
+
     - name: Reset UFW to defaults (preserving SSH)
-      shell: |
+      ansible.builtin.shell: |
         # Reset UFW but do not disable to preserve connectivity
         ufw --force reset || true
-        
+
         # Ensure SSH is allowed before enabling
         ufw allow 22/tcp comment "SSH access" || true
-        
+
         # Set default policies
         ufw default deny incoming || true
         ufw default allow outgoing || true
-        
+
         # Enable UFW safely
         ufw --force enable || true
-        
+
         echo "UFW reset to defaults with SSH preserved"
-      ignore_errors: yes
-      
+      register: ufw_reset_status
+      changed_when: "'UFW reset to defaults with SSH preserved' in ufw_reset_status.stdout"
+      failed_when: false
+
     - name: Remove hosts entry for worker nodes
-      lineinfile:
+      ansible.builtin.lineinfile:
         path: /etc/hosts
-        regexp: '^.*k8s\.shion1305\.com.*$'
+        regexp: "^.*k8s\\.shion1305\\.com.*$"
         state: absent
       when: inventory_hostname in groups['workers']
-      ignore_errors: yes
-      
+      failed_when: false
+
     - name: Clean up systemd services
-      shell: |
-        systemctl daemon-reload || true
-        systemctl reset-failed || true
-      ignore_errors: yes
-      
+      ansible.builtin.systemd:
+        daemon_reload: true
+      failed_when: false
+
+    - name: Reset failed systemd services
+      ansible.builtin.command: systemctl reset-failed
+      changed_when: false
+      failed_when: false
+
     - name: Reboot nodes to ensure clean state
-      reboot:
+      ansible.builtin.reboot:
         msg: "Rebooting after Kubernetes cluster reset"
         connect_timeout: 5
         reboot_timeout: 300
         pre_reboot_delay: 10
         post_reboot_delay: 30
         test_command: uptime
-      ignore_errors: yes
-
+      failed_when: false

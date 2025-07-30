@@ -3,131 +3,144 @@
 
 - name: Fix NotReady Nodes
   hosts: workers
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   tasks:
     - name: Check kubelet status
-      systemd:
+      ansible.builtin.systemd:
         name: kubelet
         state: started
-        enabled: yes
+        enabled: true
       register: kubelet_status
-      
+
     - name: Get kubelet logs if service failed
-      command: journalctl -u kubelet --no-pager -n 50
+      ansible.builtin.command: journalctl -u kubelet --no-pager -n 50
       register: kubelet_logs
+      changed_when: false
       when: kubelet_status.status.ActiveState != "active"
-      
+
     - name: Display kubelet logs
-      debug:
+      ansible.builtin.debug:
         msg: "{{ kubelet_logs.stdout_lines }}"
       when: kubelet_logs is defined and kubelet_logs.stdout_lines is defined
-      
+
     - name: Check containerd status
-      systemd:
+      ansible.builtin.systemd:
         name: containerd
         state: started
-        enabled: yes
-        
+        enabled: true
+
     - name: Check WireGuard interface
-      command: ip addr show {{ wireguard_interface }}
+      ansible.builtin.command: ip addr show {{ wireguard_interface }}
       register: wg_interface_status
       changed_when: false
-      
+
     - name: Display WireGuard interface status
-      debug:
+      ansible.builtin.debug:
         msg: "{{ wg_interface_status.stdout_lines }}"
-        
+
     - name: Test connectivity to control plane
-      command: ping -c 3 {{ hostvars[groups['control_plane'][0]]['wireguard_ip'] }}
+      ansible.builtin.command: ping -c 3 {{ hostvars[groups['control_plane'][0]]['wireguard_ip'] }}
       register: ping_test
       changed_when: false
-      ignore_errors: yes
-      
+      failed_when: false
+
     - name: Display ping test results
-      debug:
+      ansible.builtin.debug:
         msg: "{{ ping_test.stdout_lines if ping_test.rc == 0 else 'Ping failed: ' + ping_test.stderr }}"
-        
+
     - name: Check CNI bridge interfaces
-      shell: ip link show | grep -E "(cni0|flannel|docker0)" || echo "No CNI bridges found"
+      ansible.builtin.shell: |
+        set -o pipefail
+        ip link show | grep -E "(cni0|flannel|docker0)" || echo "No CNI bridges found"
       register: cni_bridges
       changed_when: false
-      
+
     - name: Display CNI bridge status
-      debug:
+      ansible.builtin.debug:
         msg: "{{ cni_bridges.stdout_lines }}"
-        
+
     - name: Clean up old CNI interfaces if they exist
-      shell: |
+      ansible.builtin.shell: |
         for bridge in cni0 docker0 flannel.1; do
           if ip link show $bridge >/dev/null 2>&1; then
             echo "Removing bridge: $bridge"
             ip link delete $bridge
           fi
         done
-      ignore_errors: yes
+      register: troubleshoot_bridge_cleanup
+      changed_when: "'Removing bridge:' in troubleshoot_bridge_cleanup.stdout"
+      failed_when: false
       when: "'cni0' in cni_bridges.stdout or 'docker0' in cni_bridges.stdout"
-      
+
     - name: Restart kubelet if needed
-      systemd:
+      ansible.builtin.systemd:
         name: kubelet
         state: restarted
       when: kubelet_status.status.ActiveState != "active" or "'cni0' in cni_bridges.stdout"
-      
+
 - name: Check Node Status from Control Plane
   hosts: control_plane
-  become: no
-  gather_facts: no
-  
+  become: false
+  gather_facts: false
+
   tasks:
     - name: Get detailed node status
-      shell: kubectl describe nodes
+      ansible.builtin.command: kubectl describe nodes
       register: node_details
+      changed_when: false
+      become: false
       become_user: "{{ ansible_user }}"
-      
+
     - name: Display node status summary
-      shell: kubectl get nodes -o wide
+      ansible.builtin.command: kubectl get nodes -o wide
       register: node_summary
+      changed_when: false
+      become: false
       become_user: "{{ ansible_user }}"
-      
+
     - name: Show node summary
-      debug:
+      ansible.builtin.debug:
         msg: "{{ node_summary.stdout_lines }}"
-        
+
     - name: Check for any pods in error state
-      shell: kubectl get pods --all-namespaces | grep -v Running | grep -v Completed || echo "All pods are running"
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl get pods --all-namespaces | grep -v Running | grep -v Completed || echo "All pods are running"
       register: error_pods
+      changed_when: false
+      become: false
       become_user: "{{ ansible_user }}"
-      
+
     - name: Display error pods
-      debug:
+      ansible.builtin.debug:
         msg: "{{ error_pods.stdout_lines }}"
-        
+
 - name: Force Node Readiness Check
   hosts: workers
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   tasks:
     - name: Force restart services for NotReady nodes
-      block:
-        - name: Restart containerd
-          systemd:
-            name: containerd
-            state: restarted
-            
-        - name: Wait for containerd to be ready
-          wait_for:
-            timeout: 30
-            
-        - name: Restart kubelet
-          systemd:
-            name: kubelet
-            state: restarted
-            
-        - name: Wait for kubelet to stabilize
-          wait_for:
-            timeout: 60
       tags: force_restart
 
+      block:
+        - name: Restart containerd
+          ansible.builtin.systemd:
+            name: containerd
+            state: restarted
+
+        - name: Wait for containerd to be ready
+          ansible.builtin.wait_for:
+            timeout: 30
+
+        - name: Restart kubelet
+          ansible.builtin.systemd:
+            name: kubelet
+            state: restarted
+
+        - name: Wait for kubelet to stabilize
+          ansible.builtin.wait_for:
+            timeout: 60
