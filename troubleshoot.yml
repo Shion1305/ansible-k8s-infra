@@ -17,6 +17,7 @@
     - name: Get kubelet logs if service failed
       ansible.builtin.command: journalctl -u kubelet --no-pager -n 50
       register: kubelet_logs
+      changed_when: false
       when: kubelet_status.status.ActiveState != "active"
 
     - name: Display kubelet logs
@@ -43,14 +44,16 @@
       ansible.builtin.command: ping -c 3 {{ hostvars[groups['control_plane'][0]]['wireguard_ip'] }}
       register: ping_test
       changed_when: false
-      ignore_errors: true
+      failed_when: false
 
     - name: Display ping test results
       ansible.builtin.debug:
         msg: "{{ ping_test.stdout_lines if ping_test.rc == 0 else 'Ping failed: ' + ping_test.stderr }}"
 
     - name: Check CNI bridge interfaces
-      ansible.builtin.shell: ip link show | grep -E "(cni0|flannel|docker0)" || echo "No CNI bridges found"
+      ansible.builtin.shell: |
+        set -o pipefail
+        ip link show | grep -E "(cni0|flannel|docker0)" || echo "No CNI bridges found"
       register: cni_bridges
       changed_when: false
 
@@ -66,7 +69,9 @@
             ip link delete $bridge
           fi
         done
-      ignore_errors: true
+      register: troubleshoot_bridge_cleanup
+      changed_when: "'Removing bridge:' in troubleshoot_bridge_cleanup.stdout"
+      failed_when: false
       when: "'cni0' in cni_bridges.stdout or 'docker0' in cni_bridges.stdout"
 
     - name: Restart kubelet if needed
@@ -84,12 +89,14 @@
     - name: Get detailed node status
       ansible.builtin.command: kubectl describe nodes
       register: node_details
+      changed_when: false
       become: false
       become_user: "{{ ansible_user }}"
 
     - name: Display node status summary
       ansible.builtin.command: kubectl get nodes -o wide
       register: node_summary
+      changed_when: false
       become: false
       become_user: "{{ ansible_user }}"
 
@@ -98,8 +105,11 @@
         msg: "{{ node_summary.stdout_lines }}"
 
     - name: Check for any pods in error state
-      ansible.builtin.shell: kubectl get pods --all-namespaces | grep -v Running | grep -v Completed || echo "All pods are running"
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl get pods --all-namespaces | grep -v Running | grep -v Completed || echo "All pods are running"
       register: error_pods
+      changed_when: false
       become: false
       become_user: "{{ ansible_user }}"
 

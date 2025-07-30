@@ -64,17 +64,18 @@
       ansible.builtin.command: kubectl get pods -n kube-flannel --no-headers -o custom-columns=":status.phase"
       register: flannel_pod_status
       changed_when: false
-      ignore_errors: true
+      failed_when: false
 
     - name: Create test pod for connectivity test
       ansible.builtin.command: kubectl run test-connectivity --image=nginx --restart=Never
         --overrides='{"spec":{"containers":[{"name":"test","image":"nginx","command":["sleep","30"]}]}}'
       register: test_pod_create
       changed_when: "'created' in test_pod_create.stdout"
-      ignore_errors: true
+      failed_when: false
 
     - name: Wait for test pod to be ready
       ansible.builtin.shell: |
+        set -o pipefail
         for i in {1..30}; do
           if kubectl get pod test-connectivity -o jsonpath='{.status.phase}' 2>/dev/null | grep -q Running; then
             echo "Test pod is running"
@@ -85,24 +86,29 @@
         echo "Test pod not ready after 60 seconds"
         exit 1
       register: test_pod_wait
-      ignore_errors: true
+      changed_when: "'Test pod is running' in test_pod_wait.stdout"
+      failed_when: false
       when: test_pod_create.rc == 0
 
     - name: Get test pod IP
       ansible.builtin.command: kubectl get pod test-connectivity -o jsonpath='{.status.podIP}'
       register: test_pod_ip
-      ignore_errors: true
+      changed_when: false
+      failed_when: false
       when: test_pod_wait is defined and test_pod_wait.rc == 0
 
     - name: Test pod network connectivity
       ansible.builtin.command: kubectl exec test-connectivity -- ping -c 2 8.8.8.8
       register: pod_network_test
-      ignore_errors: true
+      changed_when: false
+      failed_when: false
       when: test_pod_ip is defined and test_pod_ip.stdout != ""
 
     - name: Clean up test pod
       ansible.builtin.command: kubectl delete pod test-connectivity
-      ignore_errors: true
+      register: cleanup_result
+      changed_when: "'deleted' in cleanup_result.stdout"
+      failed_when: false
       when: test_pod_create.rc == 0
 
     - name: Display cluster verification results
@@ -111,22 +117,33 @@
           === CLUSTER VERIFICATION RESULTS ===
           Total Nodes: {{ cluster_nodes.stdout_lines | length }}
           Ready Nodes: {{ node_status.stdout_lines | select('match', 'True') | list | length }}
-          System Pods Running: {{ system_pod_status.stdout_lines | select('match', 'Running') | list | length }}/{{ system_pod_status.stdout_lines | length }}
-          Flannel Pods Running: {{ flannel_pod_status.stdout_lines | select('match', 'Running') | list | length if flannel_pod_status.stdout_lines else 0 }}/{{ flannel_pod_status.stdout_lines | length if flannel_pod_status.stdout_lines else 0 }}
+          {% set system_running = system_pod_status.stdout_lines | select('match', 'Running') | list | length %}
+          System Pods Running: {{ system_running }}/{{ system_pod_status.stdout_lines | length }}
+          {% if flannel_pod_status.stdout_lines %}
+          {% set flannel_running_count = flannel_pod_status.stdout_lines | select('match', 'Running') | list | length %}
+          {% else %}
+          {% set flannel_running_count = 0 %}
+          {% endif %}
+          {% set flannel_total_count = (flannel_pod_status.stdout_lines | length) if flannel_pod_status.stdout_lines else 0 %}
+          Flannel Pods Running: {{ flannel_running_count }}/{{ flannel_total_count }}
 
-          {% if cluster_nodes.stdout_lines | length == node_status.stdout_lines | select('match', 'True') | list | length %}
+          {% set ready_nodes = node_status.stdout_lines | select('match', 'True') | list | length %}
+          {% if cluster_nodes.stdout_lines | length == ready_nodes %}
           ✅ All nodes are Ready
           {% else %}
           ❌ Some nodes are not Ready
           {% endif %}
 
-          {% if system_pod_status.stdout_lines | select('match', 'Running') | list | length == system_pod_status.stdout_lines | length %}
+          {% set system_total = system_pod_status.stdout_lines | length %}
+          {% if system_running == system_total %}
           ✅ All system pods are Running
           {% else %}
           ⚠️  Some system pods are not Running
           {% endif %}
 
-          {% if flannel_pod_status.stdout_lines and flannel_pod_status.stdout_lines | select('match', 'Running') | list | length == flannel_pod_status.stdout_lines | length %}
+          {% set flannel_running = flannel_pod_status.stdout_lines | select('match', 'Running') | list | length %}
+          {% set flannel_total = flannel_pod_status.stdout_lines | length %}
+          {% if flannel_pod_status.stdout_lines and flannel_running == flannel_total %}
           ✅ All Flannel pods are Running
           {% elif flannel_pod_status.stdout_lines %}
           ⚠️  Some Flannel pods are not Running
@@ -144,28 +161,33 @@
       ansible.builtin.command: kubectl create deployment test-deployment --image=nginx --replicas=2
       register: test_deployment
       changed_when: "'created' in test_deployment.stdout"
-      ignore_errors: true
+      failed_when: false
 
     - name: Wait for test deployment
       ansible.builtin.command: kubectl rollout status deployment/test-deployment --timeout=120s
       register: deployment_status
-      ignore_errors: true
+      changed_when: "'successfully rolled out' in deployment_status.stdout"
+      failed_when: false
       when: test_deployment.rc == 0
 
     - name: Get test pod IPs
       ansible.builtin.command: kubectl get pods -l app=test-deployment -o jsonpath='{.items[*].status.podIP}'
       register: test_pod_ips
+      changed_when: false
       when: deployment_status is defined and deployment_status.rc == 0
 
     - name: Test pod-to-pod communication
       ansible.builtin.command: kubectl exec deployment/test-deployment -- ping -c 2 {{ test_pod_ips.stdout.split()[1] }}
       register: pod_to_pod_test
-      ignore_errors: true
+      changed_when: false
+      failed_when: false
       when: test_pod_ips is defined and test_pod_ips.stdout.split() | length > 1
 
     - name: Clean up test deployment
       ansible.builtin.command: kubectl delete deployment test-deployment
-      ignore_errors: true
+      register: cleanup_deployment
+      changed_when: "'deleted' in cleanup_deployment.stdout"
+      failed_when: false
       when: test_deployment.rc == 0
 
     - name: Display network test results

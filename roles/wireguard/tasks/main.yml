@@ -8,27 +8,29 @@
 
 - name: Resolve control plane public IP
   ansible.builtin.set_fact:
-    control_plane_public_ip: "{{ lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host']) }}"
+    wireguard_control_plane_public_ip: "{{ lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host']) }}"
   run_once: true
   delegate_to: localhost
   when: inventory_hostname in groups['control_plane'] or inventory_hostname in groups['workers']
 
 - name: Generate WireGuard private key
   ansible.builtin.command: wg genkey
-  register: private_key
+  register: wireguard_private_key
   changed_when: false
   no_log: true
 
 - name: Generate WireGuard public key
-  ansible.builtin.shell: echo "{{ private_key.stdout }}" | wg pubkey
-  register: public_key
+  ansible.builtin.shell: |
+    set -o pipefail
+    echo "{{ wireguard_private_key.stdout }}" | wg pubkey
+  register: wireguard_public_key
   changed_when: false
   no_log: true
 
 - name: Store keys in facts
   ansible.builtin.set_fact:
-    wireguard_private_key: "{{ private_key.stdout }}"
-    wireguard_public_key: "{{ public_key.stdout }}"
+    wireguard_private_key_fact: "{{ wireguard_private_key.stdout }}"
+    wireguard_public_key_fact: "{{ wireguard_public_key.stdout }}"
   no_log: true
 
 - name: Create WireGuard configuration
@@ -52,12 +54,12 @@
 
 - name: Verify WireGuard interface
   ansible.builtin.command: "wg show {{ wireguard_interface }}"
-  register: wg_status
+  register: wireguard_wg_status
   changed_when: false
 
 - name: Display WireGuard status
   ansible.builtin.debug:
-    msg: "{{ wg_status.stdout_lines }}"
+    msg: "{{ wireguard_wg_status.stdout_lines }}"
 
 # Firewall rules are now handled by UFW in the main playbook
 # This ensures consistent firewall management across all nodes

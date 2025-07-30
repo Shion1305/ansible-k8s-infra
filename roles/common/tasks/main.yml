@@ -35,6 +35,9 @@
       overlay
       br_netfilter
     dest: /etc/modules-load.d/k8s.conf
+    mode: "0644"
+    owner: root
+    group: root
 
 - name: Set sysctl parameters for Kubernetes
   ansible.posix.sysctl:
@@ -52,15 +55,15 @@
     - name: Check if systemd-resolved is running
       ansible.builtin.systemd:
         name: systemd-resolved
-      register: systemd_resolved_status
-      ignore_errors: true
+      register: common_systemd_resolved_status
+      failed_when: false
 
     - name: Create systemd resolve directory
       ansible.builtin.file:
         path: /run/systemd/resolve
         state: directory
         mode: "0755"
-      when: systemd_resolved_status.status.ActiveState|default('') != 'active'
+      when: common_systemd_resolved_status.status.ActiveState|default('') != 'active'
 
     - name: Create resolv.conf symlink for containerd
       ansible.builtin.file:
@@ -68,7 +71,7 @@
         dest: /run/systemd/resolve/resolv.conf
         state: link
         force: true
-      when: systemd_resolved_status.status.ActiveState|default('') != 'active'
+      when: common_systemd_resolved_status.status.ActiveState|default('') != 'active'
 
 - name: Install CNI plugins
   block:
@@ -87,12 +90,12 @@
     - name: Verify loopback plugin installation
       ansible.builtin.stat:
         path: /opt/cni/bin/loopback
-      register: loopback_plugin
+      register: common_loopback_plugin
 
     - name: Fail if loopback plugin not found
       ansible.builtin.fail:
         msg: "CNI loopback plugin not found at /opt/cni/bin/loopback"
-      when: not loopback_plugin.stat.exists
+      when: not common_loopback_plugin.stat.exists
 
     - name: Clean up CNI archive
       ansible.builtin.file:

@@ -30,4 +30,3 @@
     - name: Test dynamic IP resolution
       ansible.builtin.debug:
         msg: "Control plane public IP: {{ lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host']) }}"
-      run_once: true

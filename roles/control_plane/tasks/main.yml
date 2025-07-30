@@ -2,7 +2,7 @@
 - name: Check if Kubernetes is already initialized
   ansible.builtin.stat:
     path: /etc/kubernetes/admin.conf
-  register: kubeconfig_exists
+  register: control_plane_kubeconfig_exists
 
 - name: Initialize Kubernetes control plane
   ansible.builtin.command: >
@@ -11,8 +11,9 @@
     --control-plane-endpoint={{ control_plane_endpoint }}
     --pod-network-cidr={{ pod_network_cidr }}
     --upload-certs
-  register: kubeadm_init
-  when: not kubeconfig_exists.stat.exists
+  register: control_plane_kubeadm_init
+  changed_when: "'Your Kubernetes control-plane has initialized successfully' in control_plane_kubeadm_init.stdout"
+  when: not control_plane_kubeconfig_exists.stat.exists
 
 - name: Create .kube directory
   ansible.builtin.file:
@@ -41,12 +42,12 @@
 
 - name: Generate join command for worker nodes
   ansible.builtin.command: kubeadm token create --print-join-command
-  register: join_command
+  register: control_plane_join_command
   changed_when: false
 
 - name: Store join command
   ansible.builtin.set_fact:
-    kubernetes_join_command: "{{ join_command.stdout }}"
+    control_plane_kubernetes_join_command: "{{ control_plane_join_command.stdout }}"
   delegate_to: "{{ item }}"
   delegate_facts: true
   loop: "{{ groups['workers'] }}"

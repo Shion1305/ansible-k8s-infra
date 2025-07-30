@@ -3,31 +3,38 @@
   ansible.builtin.command: kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
   become_user: "{{ ansible_user }}"
   become: false
-  register: flannel_deployment
-  changed_when: "'created' in flannel_deployment.stdout or 'configured' in flannel_deployment.stdout"
+  register: cni_flannel_deployment
+  changed_when: "'created' in cni_flannel_deployment.stdout or 'configured' in cni_flannel_deployment.stdout"
 
 - name: Verify Flannel DaemonSet has been created
-  ansible.builtin.shell: kubectl get daemonset -n kube-flannel kube-flannel-ds -o name 2>/dev/null || echo ""
+  ansible.builtin.shell: |
+    set -o pipefail
+    kubectl get daemonset -n kube-flannel kube-flannel-ds -o name 2>/dev/null || echo ""
   become_user: "{{ ansible_user }}"
   become: false
-  register: flannel_daemonset_exists
+  register: cni_flannel_daemonset_exists
   retries: 10
   delay: 5
-  until: flannel_daemonset_exists.stdout != ""
-  ignore_errors: true
+  until: cni_flannel_daemonset_exists.stdout != ""
+  changed_when: false
+  failed_when: false
 
 - name: Wait for some Flannel pods to start appearing
-  ansible.builtin.shell: kubectl get pods -n kube-flannel | grep -c kube-flannel || echo "0"
+  ansible.builtin.shell: |
+    set -o pipefail
+    kubectl get pods -n kube-flannel | grep -c kube-flannel || echo "0"
   become_user: "{{ ansible_user }}"
   become: false
-  register: flannel_pod_count
+  register: cni_flannel_pod_count
   retries: 15
   delay: 5
-  until: flannel_pod_count.stdout | int > 0
-  ignore_errors: true
+  until: cni_flannel_pod_count.stdout | int > 0
+  changed_when: false
+  failed_when: false
 
 - name: Wait for all nodes to be ready
   ansible.builtin.shell: |
+    set -o pipefail
     NOT_READY=$(kubectl get nodes --no-headers | grep -v Ready | wc -l)
     if [ "$NOT_READY" -eq "0" ]; then
       echo "All nodes are ready"
@@ -40,14 +47,16 @@
     fi
   become_user: "{{ ansible_user }}"
   become: false
-  register: nodes_ready_status
-  until: nodes_ready_status.rc == 0
+  register: cni_nodes_ready_status
+  until: cni_nodes_ready_status.rc == 0
   retries: 60
   delay: 10
-  ignore_errors: true
+  changed_when: "'All nodes are ready' in cni_nodes_ready_status.stdout"
+  failed_when: false
 
 - name: Wait for CoreDNS pods to be ready
   ansible.builtin.shell: |
+    set -o pipefail
     NOT_READY=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers | grep -v Running | wc -l)
     if [ "$NOT_READY" -eq "0" ]; then
       echo "CoreDNS pods are ready"
@@ -60,11 +69,12 @@
     fi
   become_user: "{{ ansible_user }}"
   become: false
-  register: coredns_status
-  until: coredns_status.rc == 0
+  register: cni_coredns_status
+  until: cni_coredns_status.rc == 0
   retries: 30
   delay: 10
-  ignore_errors: true
+  changed_when: "'CoreDNS pods are ready' in cni_coredns_status.stdout"
+  failed_when: false
 
 - name: Save Flannel logs for troubleshooting if needed
   ansible.builtin.shell: |
@@ -74,7 +84,7 @@
   become_user: "{{ ansible_user }}"
   become: false
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
 - name: Verify all CNI components are working correctly
   ansible.builtin.shell: |

@@ -12,7 +12,7 @@
       ansible.builtin.package:
         update_cache: true
       when: ansible_os_family == "Debian"
-      ignore_errors: true
+      failed_when: false
 
     - name: Ensure required directories exist
       ansible.builtin.file:
@@ -44,7 +44,6 @@
     - name: Resolve control plane public IP
       ansible.builtin.set_fact:
         control_plane_public_ip: "{{ lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host']) }}"
-      run_once: true
       delegate_to: localhost
       delegate_facts: true
 
@@ -55,7 +54,9 @@
       no_log: true
 
     - name: Generate WireGuard public key
-      ansible.builtin.shell: echo "{{ private_key.stdout }}" | wg pubkey
+      ansible.builtin.shell: |
+        set -o pipefail
+        echo "{{ private_key.stdout }}" | wg pubkey
       register: public_key
       changed_when: false
       no_log: true
@@ -208,8 +209,8 @@
             policy: deny
             direction: incoming
   handlers:
-    - name: restart wireguard
-      systemd:
+    - name: Restart WireGuard
+      ansible.builtin.systemd:
         name: "wg-quick@{{ wireguard_interface }}"
         state: restarted
 
@@ -219,7 +220,7 @@
   gather_facts: false
 
   roles:
-    - control-plane
+    - control_plane
 
 - name: Join Worker Nodes
   hosts: workers
@@ -239,16 +240,19 @@
       ansible.builtin.shell: |
         for bridge in cni0 docker0 flannel.1; do
           if ip link show $bridge >/dev/null 2>&1; then
+            echo "Removing bridge: $bridge"
             ip link delete $bridge
           fi
         done
-      ignore_errors: true
+      register: bridge_cleanup_site
+      changed_when: "'Removing bridge:' in bridge_cleanup_site.stdout"
+      failed_when: false
 
     - name: Stop kubelet before CNI deployment
       ansible.builtin.systemd:
         name: kubelet
         state: stopped
-      ignore_errors: true
+      failed_when: false
 
 - name: Deploy CNI
   hosts: control_plane

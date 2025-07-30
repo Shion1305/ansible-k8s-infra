@@ -22,13 +22,16 @@
 
 - name: Generate containerd configuration
   ansible.builtin.command: containerd config default
-  register: containerd_config
+  register: kubernetes_containerd_config
   changed_when: false
 
 - name: Write containerd configuration
   ansible.builtin.copy:
-    content: "{{ containerd_config.stdout }}"
+    content: "{{ kubernetes_containerd_config.stdout }}"
     dest: /etc/containerd/config.toml
+    mode: "0644"
+    owner: root
+    group: root
     backup: true
   notify: restart containerd
 
@@ -61,6 +64,9 @@
     path: /etc/default/kubelet
     regexp: "^KUBELET_EXTRA_ARGS="
     line: 'KUBELET_EXTRA_ARGS="--node-ip={{ wireguard_ip }}"'
+    mode: "0644"
+    owner: root
+    group: root
     create: true
   notify: restart kubelet
   when: inventory_hostname in groups['workers']
@@ -70,6 +76,9 @@
     path: /etc/default/kubelet
     regexp: "^KUBELET_EXTRA_ARGS="
     line: 'KUBELET_EXTRA_ARGS="--node-ip={{ local_ip }}"'
+    mode: "0644"
+    owner: root
+    group: root
     create: true
   notify: restart kubelet
   when: inventory_hostname in groups['control_plane']

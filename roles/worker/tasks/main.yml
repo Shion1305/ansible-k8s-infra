@@ -17,7 +17,9 @@
         ip link delete $bridge
       fi
     done
-  ignore_errors: true
+  register: worker_bridge_cleanup
+  changed_when: "'Removing bridge:' in worker_bridge_cleanup.stdout"
+  failed_when: false
 
 - name: Remove stale CNI network configuration
   ansible.builtin.file:
@@ -27,23 +29,26 @@
     - /etc/cni/net.d/10-flannel.conflist
     - /etc/cni/net.d/10-containerd-net.conflist
     - /var/lib/cni/networks
-  ignore_errors: true
+  failed_when: false
 
 - name: Check if node is already joined
   ansible.builtin.stat:
     path: /etc/kubernetes/kubelet.conf
-  register: kubelet_conf_exists
+  register: worker_kubelet_conf_exists
 
 - name: Join worker node to cluster
-  ansible.builtin.command: "{{ kubernetes_join_command }}"
-  when: not kubelet_conf_exists.stat.exists and kubernetes_join_command is defined
+  ansible.builtin.command: "{{ control_plane_kubernetes_join_command }}"
+  register: worker_join_result
+  changed_when: "'This node has joined the cluster' in worker_join_result.stdout"
+  when: not worker_kubelet_conf_exists.stat.exists and control_plane_kubernetes_join_command is defined
 
 - name: Update kubelet configuration with node IP
   ansible.builtin.lineinfile:
     path: /var/lib/kubelet/kubeadm-flags.env
     regexp: "^KUBELET_KUBEADM_ARGS=.*"
-    line: 'KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.10 --node-ip={{
-      wireguard_ip }}"'
+    line: >
+      KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock
+      --pod-infra-container-image=registry.k8s.io/pause:3.10 --node-ip={{ wireguard_ip }}"
     backup: true
   notify: restart kubelet
 
