@@ -1,54 +1,54 @@
 ---
 # UFW firewall configuration is now handled in the main site.yml playbook
 # This avoids duplication and ensures consistent firewall management
-  
+
 - name: Add DNS override for WireGuard routing
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/hosts
-    regexp: '^.*k8s\.shion1305\.com.*$'
+    regexp: "^.*k8s\\.shion1305\\.com.*$"
     line: "{{ hostvars[groups['control_plane'][0]]['wireguard_ip'] }} {{ hostvars[groups['control_plane'][0]]['ansible_host'] }}"
-    backup: yes
-  
+    backup: true
+
 - name: Clean up old CNI network interfaces
-  shell: |
+  ansible.builtin.shell: |
     for bridge in cni0 docker0 flannel.1; do
       if ip link show $bridge >/dev/null 2>&1; then
         echo "Removing bridge: $bridge"
         ip link delete $bridge
       fi
     done
-  ignore_errors: yes
-  
+  ignore_errors: true
+
 - name: Remove stale CNI network configuration
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: absent
   loop:
     - /etc/cni/net.d/10-flannel.conflist
     - /etc/cni/net.d/10-containerd-net.conflist
     - /var/lib/cni/networks
-  ignore_errors: yes
-  
+  ignore_errors: true
+
 - name: Check if node is already joined
-  stat:
+  ansible.builtin.stat:
     path: /etc/kubernetes/kubelet.conf
   register: kubelet_conf_exists
-  
+
 - name: Join worker node to cluster
-  command: "{{ kubernetes_join_command }}"
+  ansible.builtin.command: "{{ kubernetes_join_command }}"
   when: not kubelet_conf_exists.stat.exists and kubernetes_join_command is defined
-  
+
 - name: Update kubelet configuration with node IP
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /var/lib/kubelet/kubeadm-flags.env
-    regexp: '^KUBELET_KUBEADM_ARGS=.*'
-    line: 'KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.10 --node-ip={{ wireguard_ip }}"'
-    backup: yes
+    regexp: "^KUBELET_KUBEADM_ARGS=.*"
+    line: 'KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.10 --node-ip={{
+      wireguard_ip }}"'
+    backup: true
   notify: restart kubelet
-  
+
 - name: Ensure kubelet is running
-  systemd:
+  ansible.builtin.systemd:
     name: kubelet
     state: started
-    enabled: yes
-
+    enabled: true

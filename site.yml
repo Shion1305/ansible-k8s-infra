@@ -4,21 +4,21 @@
 
 - name: Setup Common Prerequisites
   hosts: all
-  become: yes
-  gather_facts: yes
-  
+  become: true
+  gather_facts: true
+
   pre_tasks:
     - name: Update package cache
-      package:
-        update_cache: yes
+      ansible.builtin.package:
+        update_cache: true
       when: ansible_os_family == "Debian"
-      ignore_errors: yes
-      
+      ignore_errors: true
+
     - name: Ensure required directories exist
-      file:
+      ansible.builtin.file:
         path: "{{ item }}"
         state: directory
-        mode: '0755'
+        mode: "0755"
       loop:
         - /opt/cni/bin
         - /etc/wireguard
@@ -30,183 +30,183 @@
 
 - name: Generate WireGuard Keys
   hosts: all
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   tasks:
     - name: Install WireGuard
-      package:
+      ansible.builtin.package:
         name:
           - wireguard
           - wireguard-tools
         state: present
-        
+
     - name: Resolve control plane public IP
-      set_fact:
+      ansible.builtin.set_fact:
         control_plane_public_ip: "{{ lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host']) }}"
       run_once: true
       delegate_to: localhost
-      delegate_facts: yes
-      
+      delegate_facts: true
+
     - name: Generate WireGuard private key
-      shell: wg genkey
+      ansible.builtin.command: wg genkey
       register: private_key
       changed_when: false
       no_log: true
-      
+
     - name: Generate WireGuard public key
-      shell: echo "{{ private_key.stdout }}" | wg pubkey
+      ansible.builtin.shell: echo "{{ private_key.stdout }}" | wg pubkey
       register: public_key
       changed_when: false
       no_log: true
-      
+
     - name: Store keys in facts
-      set_fact:
+      ansible.builtin.set_fact:
         wireguard_private_key: "{{ private_key.stdout }}"
         wireguard_public_key: "{{ public_key.stdout }}"
       no_log: true
 
 - name: Configure WireGuard
   hosts: all
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   tasks:
     - name: Create WireGuard configuration
-      template:
+      ansible.builtin.template:
         src: "roles/wireguard/templates/{{ wireguard_interface }}.conf.j2"
         dest: "/etc/wireguard/{{ wireguard_interface }}.conf"
-        mode: '0600'
-        backup: yes
+        mode: "0600"
+        backup: true
       notify: restart wireguard
-      
+
     - name: Enable and start WireGuard service
-      systemd:
+      ansible.builtin.systemd:
         name: "wg-quick@{{ wireguard_interface }}"
-        enabled: yes
+        enabled: true
         state: started
-        
+
     - name: Install and configure UFW on all nodes
-      package:
+      ansible.builtin.package:
         name: ufw
         state: present
-        
+
     - name: Configure UFW for control plane
+      when: inventory_hostname in groups['control_plane']
+
       block:
         - name: Allow SSH access
-          ufw:
+          community.general.ufw:
             rule: allow
-            port: '22'
+            port: "22"
             proto: tcp
             comment: "SSH access"
-            
+
         - name: Allow Kubernetes API server
-          ufw:
+          community.general.ufw:
             rule: allow
-            port: '6443'
+            port: "6443"
             proto: tcp
             comment: "Kubernetes API server"
-            
+
         - name: Allow etcd server client API
-          ufw:
+          community.general.ufw:
             rule: allow
-            port: '2379:2380'
+            port: "2379:2380"
             proto: tcp
             comment: "etcd server client API"
-            
+
         - name: Allow kubelet API
-          ufw:
+          community.general.ufw:
             rule: allow
-            port: '10250'
+            port: "10250"
             proto: tcp
             comment: "Kubernetes kubelet"
-            
+
         - name: Allow kube-scheduler
-          ufw:
+          community.general.ufw:
             rule: allow
-            port: '10259'
+            port: "10259"
             proto: tcp
             comment: "kube-scheduler"
-            
+
         - name: Allow kube-controller-manager
-          ufw:
+          community.general.ufw:
             rule: allow
-            port: '10257'
+            port: "10257"
             proto: tcp
             comment: "kube-controller-manager"
-            
+
         - name: Allow WireGuard UDP port
-          ufw:
+          community.general.ufw:
             rule: allow
             port: "{{ wireguard_port }}"
             proto: udp
             comment: "WireGuard VPN"
-            
+
         - name: Allow WireGuard interface traffic
-          ufw:
+          community.general.ufw:
             rule: allow
             direction: in
             interface: "{{ wireguard_interface }}"
             comment: "WireGuard interface input"
-            
+
         - name: Allow WireGuard interface output
-          ufw:
+          community.general.ufw:
             rule: allow
             direction: out
             interface: "{{ wireguard_interface }}"
             comment: "WireGuard interface output"
-            
+
         - name: Enable UFW firewall
-          ufw:
+          community.general.ufw:
             state: enabled
             policy: deny
             direction: incoming
-      when: inventory_hostname in groups['control_plane']
-      
     - name: Configure UFW for worker nodes
+      when: inventory_hostname in groups['workers']
+
       block:
         - name: Allow SSH access
-          ufw:
+          community.general.ufw:
             rule: allow
-            port: '22'
+            port: "22"
             proto: tcp
             comment: "SSH access"
-            
+
         - name: Allow kubelet API
-          ufw:
+          community.general.ufw:
             rule: allow
-            port: '10250'
+            port: "10250"
             proto: tcp
             comment: "Kubernetes kubelet"
-            
+
         - name: Allow NodePort services
-          ufw:
+          community.general.ufw:
             rule: allow
-            port: '30000:32767'
+            port: "30000:32767"
             proto: tcp
             comment: "Kubernetes NodePort services"
-            
+
         - name: Allow WireGuard interface input
-          ufw:
+          community.general.ufw:
             rule: allow
             direction: in
             interface: "{{ wireguard_interface }}"
             comment: "WireGuard interface input"
-            
+
         - name: Allow WireGuard interface output
-          ufw:
+          community.general.ufw:
             rule: allow
             direction: out
             interface: "{{ wireguard_interface }}"
             comment: "WireGuard interface output"
-            
+
         - name: Enable UFW firewall
-          ufw:
+          community.general.ufw:
             state: enabled
             policy: deny
             direction: incoming
-      when: inventory_hostname in groups['workers']
-      
   handlers:
     - name: restart wireguard
       systemd:
@@ -215,93 +215,92 @@
 
 - name: Initialize Control Plane
   hosts: control_plane
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   roles:
     - control-plane
 
 - name: Join Worker Nodes
   hosts: workers
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   roles:
     - worker
 
 - name: Prepare CNI Environment
   hosts: workers
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   tasks:
     - name: Remove old CNI bridge interfaces that might conflict
-      shell: |
+      ansible.builtin.shell: |
         for bridge in cni0 docker0 flannel.1; do
           if ip link show $bridge >/dev/null 2>&1; then
             ip link delete $bridge
           fi
         done
-      ignore_errors: yes
-      
+      ignore_errors: true
+
     - name: Stop kubelet before CNI deployment
-      systemd:
+      ansible.builtin.systemd:
         name: kubelet
         state: stopped
-      ignore_errors: yes
+      ignore_errors: true
 
 - name: Deploy CNI
   hosts: control_plane
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   roles:
     - cni
-    
+
 - name: Restart workers after CNI deployment
   hosts: workers
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   tasks:
     - name: Restart kubelet on worker nodes after CNI deployment
-      systemd:
+      ansible.builtin.systemd:
         name: kubelet
         state: restarted
-        enabled: yes
+        enabled: true
 
     - name: Verify kubelet is running
-      command: systemctl status kubelet
+      ansible.builtin.command: systemctl status kubelet
       register: kubelet_status
       changed_when: false
 
     - name: Show kubelet status
-      debug:
+      ansible.builtin.debug:
         msg: "{{ kubelet_status.stdout_lines | default('Kubelet status unavailable') }}"
       when: kubelet_status is defined
-    
+
 - name: Verify CNI Deployment
   hosts: control_plane
-  become: yes
-  gather_facts: no
+  become: true
+  gather_facts: false
 
   tasks:
     - name: Include CNI verification tasks
-      include_tasks: roles/cni/tasks/verify_cni.yml
-
+      ansible.builtin.include_tasks: roles/cni/tasks/verify_cni.yml
 - name: Verify Deployment
   hosts: control_plane
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   tasks:
     - name: Verify node status
-      command: kubectl get nodes -o wide
+      ansible.builtin.command: kubectl get nodes -o wide
       register: node_status
+      become: true
       become_user: "{{ ansible_user }}"
       changed_when: false
-      
-    - name: Display cluster status
-      debug:
-        msg: "{{ node_status.stdout_lines }}"
 
+    - name: Display cluster status
+      ansible.builtin.debug:
+        msg: "{{ node_status.stdout_lines }}"

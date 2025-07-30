@@ -4,144 +4,143 @@
 
 - name: Clean CNI Bridge Interfaces
   hosts: workers
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   tasks:
     - name: Stop kubelet service
-      systemd:
+      ansible.builtin.systemd:
         name: kubelet
         state: stopped
-      ignore_errors: yes
-      
+      ignore_errors: true
+
     - name: Remove CNI bridge interfaces
-      shell: |
+      ansible.builtin.shell: |
         for bridge in cni0 docker0 flannel.1; do
           if ip link show $bridge >/dev/null 2>&1; then
             echo "Removing bridge: $bridge"
             ip link delete $bridge
           fi
         done
-      ignore_errors: yes
-      
+      ignore_errors: true
+
     - name: Clear CNI network state
-      file:
+      ansible.builtin.file:
         path: "{{ item }}"
         state: absent
       loop:
         - /var/lib/cni/networks
         - /var/lib/cni/results
-      ignore_errors: yes
-      
+      ignore_errors: true
+
     - name: Start kubelet service
-      systemd:
+      ansible.builtin.systemd:
         name: kubelet
         state: started
-        enabled: yes
+        enabled: true
 
 - name: Verify WireGuard Status
   hosts: all
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   tasks:
     - name: Check WireGuard interface status
-      command: wg show {{ wireguard_interface }}
+      ansible.builtin.command: wg show {{ wireguard_interface }}
       register: wg_status
       changed_when: false
-      
+
     - name: Display WireGuard status
-      debug:
+      ansible.builtin.debug:
         msg: "{{ wg_status.stdout_lines }}"
-        
+
     - name: Test WireGuard connectivity to control plane
-      command: ping -c 3 {{ hostvars[groups['control_plane'][0]]['wireguard_ip'] }}
+      ansible.builtin.command: ping -c 3 {{ hostvars[groups['control_plane'][0]]['wireguard_ip'] }}
       register: ping_result
       changed_when: false
       when: inventory_hostname not in groups['control_plane']
-      
+
     - name: Display ping results
-      debug:
+      ansible.builtin.debug:
         msg: "{{ ping_result.stdout_lines }}"
       when: inventory_hostname not in groups['control_plane'] and ping_result is defined
 
 - name: Cluster Health Check
   hosts: control_plane
-  become: no
-  gather_facts: no
-  
+  become: false
+  gather_facts: false
+
   tasks:
     - name: Check cluster nodes
-      command: kubectl get nodes -o wide
+      ansible.builtin.command: kubectl get nodes -o wide
       register: cluster_nodes
       changed_when: false
-      
+
     - name: Check system pods
-      command: kubectl get pods -n kube-system -o wide
+      ansible.builtin.command: kubectl get pods -n kube-system -o wide
       register: system_pods
       changed_when: false
-      
+
     - name: Check Flannel pods
-      command: kubectl get pods -n kube-flannel -o wide
+      ansible.builtin.command: kubectl get pods -n kube-flannel -o wide
       register: flannel_pods
       changed_when: false
-      
+
     - name: Display cluster status
-      debug:
+      ansible.builtin.debug:
         msg: |
           === CLUSTER NODES ===
           {{ cluster_nodes.stdout }}
-          
+
           === SYSTEM PODS ===
           {{ system_pods.stdout }}
-          
+
           === FLANNEL PODS ===
           {{ flannel_pods.stdout }}
 
 - name: Update Cluster Components
   hosts: all
-  become: yes
-  gather_facts: no
-  
+  become: true
+  gather_facts: false
+
   tasks:
     - name: Update package cache
-      package:
-        update_cache: yes
+      ansible.builtin.package:
+        update_cache: true
       when: ansible_os_family == "Debian"
-      
+
     - name: Upgrade Kubernetes packages (hold packages first)
-      shell: |
+      ansible.builtin.shell: |
         apt-mark unhold kubelet kubeadm kubectl
         apt-get update
         apt-get install -y kubelet kubeadm kubectl
         apt-mark hold kubelet kubeadm kubectl
       when: ansible_os_family == "Debian"
-      ignore_errors: yes
-      
+      ignore_errors: true
+
 - name: Restart Cluster Services
   hosts: all
-  become: yes
-  gather_facts: no
+  become: true
+  gather_facts: false
   serial: 1
-  
+
   tasks:
     - name: Restart containerd
-      systemd:
+      ansible.builtin.systemd:
         name: containerd
         state: restarted
-        
+
     - name: Restart kubelet
-      systemd:
+      ansible.builtin.systemd:
         name: kubelet
         state: restarted
-        
+
     - name: Wait for node to be ready
-      command: kubectl get node {{ ansible_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      ansible.builtin.command: kubectl get node {{ ansible_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
       register: node_ready
       until: node_ready.stdout == "True"
       retries: 30
       delay: 10
       delegate_to: "{{ groups['control_plane'][0] }}"
-      become: no
+      become: false
       when: inventory_hostname in groups['control_plane']
-

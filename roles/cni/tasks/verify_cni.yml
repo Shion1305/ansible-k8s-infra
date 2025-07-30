@@ -3,17 +3,17 @@
 # These tasks are intended to be run after nodes are ready
 
 - name: Wait for Flannel pods to be ready
-  shell: kubectl get pods -n kube-flannel -o jsonpath='{.items[*].status.phase}' | grep -v Running | wc -l
+  ansible.builtin.shell: kubectl get pods -n kube-flannel -o jsonpath='{.items[*].status.phase}' | grep -v Running | wc -l
   become_user: "{{ ansible_user }}"
-  become: no
+  become: false
   register: flannel_pod_status
   until: flannel_pod_status.stdout == "0"
   retries: 30
   delay: 10
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Wait for Flannel DaemonSet to be ready
-  shell: |
+  ansible.builtin.shell: |
     READY=$(kubectl get daemonset -n kube-flannel kube-flannel-ds -o jsonpath='{.status.numberReady}' 2>/dev/null || echo "0")
     DESIRED=$(kubectl get daemonset -n kube-flannel kube-flannel-ds -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo "1")
     if [ "$READY" = "$DESIRED" ] && [ "$READY" -gt "0" ]; then
@@ -24,15 +24,15 @@
       exit 1
     fi
   become_user: "{{ ansible_user }}"
-  become: no
+  become: false
   register: flannel_daemonset_status
   until: flannel_daemonset_status.rc == 0
   retries: 30
   delay: 10
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Wait for all nodes to be ready
-  shell: |
+  ansible.builtin.shell: |
     NOT_READY=$(kubectl get nodes --no-headers | grep -v Ready | wc -l)
     if [ "$NOT_READY" -eq "0" ]; then
       echo "All nodes are ready"
@@ -44,15 +44,15 @@
       exit 1
     fi
   become_user: "{{ ansible_user }}"
-  become: no
+  become: false
   register: nodes_ready_status
   until: nodes_ready_status.rc == 0
   retries: 60
   delay: 10
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Wait for CoreDNS pods to be ready
-  shell: |
+  ansible.builtin.shell: |
     NOT_READY=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers | grep -v Running | wc -l)
     if [ "$NOT_READY" -eq "0" ]; then
       echo "CoreDNS pods are ready"
@@ -64,9 +64,9 @@
       exit 1
     fi
   become_user: "{{ ansible_user }}"
-  become: no
+  become: false
   register: coredns_status
   until: coredns_status.rc == 0
   retries: 30
   delay: 10
-  ignore_errors: yes
+  ignore_errors: true
