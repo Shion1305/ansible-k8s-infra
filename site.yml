@@ -49,7 +49,10 @@
       no_log: true
 
     - name: Generate WireGuard public key
-      ansible.builtin.shell: echo "{{ private_key.stdout }}" | wg pubkey
+      ansible.builtin.shell:
+        cmd: set -o pipefail && echo "{{ private_key.stdout }}" | wg pubkey
+      args:
+        executable: /bin/bash
       register: public_key
       changed_when: false
       no_log: true
