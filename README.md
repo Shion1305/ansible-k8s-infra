@@ -202,8 +202,11 @@ ansible-playbook -i inventory.yml reset.yml
 ### Partial Operations
 
 ```bash
-# Only configure WireGuard
+# Only configure/reconfigure WireGuard
 ansible-playbook -i inventory.yml site.yml --tags=wireguard
+
+# Regenerate WireGuard keys/configs via Makefile helper
+make reconfigure-wireguard
 
 # Only join worker nodes
 ansible-playbook -i inventory.yml site.yml --limit=workers
@@ -352,4 +355,3 @@ ansible control_plane -i inventory.yml -m shell -a "kubectl get nodes" -b --beco
 ```
 
 **Result**: Production-ready Kubernetes cluster in under 30 minutes! 🚀
-

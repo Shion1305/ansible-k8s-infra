@@ -33,14 +33,29 @@
     owner: root
     group: root
     backup: true
-  notify: restart containerd
+  register: kubernetes_containerd_config_written
 
 - name: Enable systemd cgroups in containerd
   ansible.builtin.lineinfile:
     path: /etc/containerd/config.toml
     regexp: "^\\s*SystemdCgroup = false"
     line: "            SystemdCgroup = true"
-  notify: restart containerd
+  register: kubernetes_containerd_systemd_cgroup
+
+- name: Prompt for containerd restart confirmation
+  ansible.builtin.pause:
+    prompt: "Containerd configuration changed on {{ inventory_hostname }}. Do you want to restart containerd? (yes/no)"
+  register: containerd_restart_confirm
+  when: kubernetes_containerd_config_written.changed or kubernetes_containerd_systemd_cgroup.changed
+  run_once: false
+
+- name: Restart containerd if confirmed
+  ansible.builtin.systemd:
+    name: containerd
+    state: restarted
+  when: >
+    (kubernetes_containerd_config_written.changed or kubernetes_containerd_systemd_cgroup.changed)
+    and containerd_restart_confirm.user_input | default('no') | lower in ['yes', 'y']
 
 - name: Install Kubernetes packages
   ansible.builtin.package:
@@ -68,7 +83,7 @@
     owner: root
     group: root
     create: true
-  notify: restart kubelet
+  notify: Restart kubelet
   when: inventory_hostname in groups['workers']
 
 - name: Configure kubelet node IP for control plane
@@ -80,7 +95,7 @@
     owner: root
     group: root
     create: true
-  notify: restart kubelet
+  notify: Restart kubelet
   when: inventory_hostname in groups['control_plane']
 
 - name: Enable and start services

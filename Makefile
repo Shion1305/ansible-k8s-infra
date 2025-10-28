@@ -1,4 +1,4 @@
-.PHONY: help install deploy verify clean reset maintenance test ping troubleshoot fix-nodes lint format
+.PHONY: help install deploy verify clean reset maintenance test ping troubleshoot fix-nodes lint format reconfigure-wireguard
 
 # Default target
 help:
@@ -26,34 +26,39 @@ help:
 
 install:
 	@echo "Installing Ansible dependencies..."
-	pip3 install ansible
-	ansible-galaxy collection install -r requirements.yml
+	uv sync
+	uv run ansible-galaxy collection install -r requirements.yml
 	@echo "✅ Dependencies installed"
 
 ping:
 	@echo "Testing connectivity to all nodes..."
-	ansible all -i inventory.yml -m ping
+	uv run ansible all -i inventory.yml -m ping
 	@echo "✅ Connectivity test complete"
 
 deploy:
 	@echo "Deploying Kubernetes cluster with WireGuard..."
-	ansible-playbook -i inventory.yml site.yml
+	uv run ansible-playbook -i inventory.yml site.yml
 	@echo "✅ Cluster deployment complete"
+
+reconfigure-wireguard:
+	@echo "Reconfiguring WireGuard across all nodes..."
+	uv run ansible-playbook -i inventory.yml site.yml --tags wireguard
+	@echo "✅ WireGuard reconfiguration complete"
 
 verify:
 	@echo "Running cluster verification..."
-	ansible-playbook -i inventory.yml verify.yml
+	uv run ansible-playbook -i inventory.yml verify.yml
 	@echo "✅ Verification complete"
 
 maintenance:
 	@echo "Running maintenance operations..."
-	ansible-playbook -i inventory.yml maintenance.yml
+	uv run ansible-playbook -i inventory.yml maintenance.yml
 	@echo "✅ Maintenance complete"
 
 reset:
 	@echo "⚠️  WARNING: This will completely destroy the cluster!"
 	@read -p "Are you sure? Type 'yes' to continue: " confirm && [ "$$confirm" = "yes" ]
-	ansible-playbook -i inventory.yml reset.yml
+	uv run ansible-playbook -i inventory.yml reset.yml
 	@echo "✅ Cluster reset complete"
 
 test:
@@ -64,7 +69,7 @@ test:
 
 clean:
 	@echo "Cleaning CNI interfaces and restarting services..."
-	ansible-playbook -i inventory.yml maintenance.yml --tags=clean-cni
+	uv run ansible-playbook -i inventory.yml maintenance.yml --tags=clean-cni
 	@echo "✅ Cleanup complete"
 
 lint:
@@ -80,38 +85,37 @@ format:
 # Quick operations
 status:
 	@echo "Checking cluster status..."
-	ansible control_plane -i inventory.yml -m shell -a "kubectl get nodes -o wide" --become-user=ubuntu
-	ansible control_plane -i inventory.yml -m shell -a "kubectl get pods --all-namespaces | grep -v Running" --become-user=ubuntu || true
+	uv run ansible control_plane -i inventory.yml -m shell -a "kubectl get nodes -o wide" --become-user=ubuntu
+	uv run ansible control_plane -i inventory.yml -m shell -a "kubectl get pods --all-namespaces | grep -v Running" --become-user=ubuntu || true
 
 wireguard:
 	@echo "Checking WireGuard status..."
-	ansible all -i inventory.yml -m shell -a "wg show" --become
+	uv run ansible all -i inventory.yml -m shell -a "wg show" --become
 
 logs:
 	@echo "Checking recent kubelet logs..."
-	ansible all -i inventory.yml -m shell -a "journalctl -u kubelet --no-pager -n 20" --become
+	uv run ansible all -i inventory.yml -m shell -a "journalctl -u kubelet --no-pager -n 20" --become
 
 troubleshoot:
 	@echo "Running cluster troubleshooting..."
-	ansible-playbook -i inventory.yml troubleshoot.yml
+	uv run ansible-playbook -i inventory.yml troubleshoot.yml
 	@echo "✅ Troubleshooting complete"
 
 fix-nodes:
 	@echo "Fixing NotReady nodes..."
-	ansible-playbook -i inventory.yml troubleshoot.yml --tags=force_restart
+	uv run ansible-playbook -i inventory.yml troubleshoot.yml --tags=force_restart
 	@echo "✅ Node fix complete"
 
 # Development targets
 dev-deploy:
 	@echo "Development deployment (with verbose output)..."
-	ansible-playbook -i inventory.yml site.yml -vv
+	uv run ansible-playbook -i inventory.yml site.yml -vv
 
 dev-reset:
 	@echo "Development reset (no confirmation)..."
-	ansible-playbook -i inventory.yml reset.yml
+	uv run ansible-playbook -i inventory.yml reset.yml
 
 dev-test:
 	@echo "Development testing..."
 	make ping
-	ansible-playbook -i inventory.yml verify.yml -v
-
+	uv run ansible-playbook -i inventory.yml verify.yml -v

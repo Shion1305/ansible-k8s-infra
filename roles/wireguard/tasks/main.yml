@@ -6,13 +6,6 @@
       - wireguard-tools
     state: present
 
-- name: Resolve control plane public IP
-  ansible.builtin.set_fact:
-    wireguard_control_plane_public_ip: "{{ lookup('dig', hostvars[groups['control_plane'][0]]['ansible_host']) }}"
-  run_once: true
-  delegate_to: localhost
-  when: inventory_hostname in groups['control_plane'] or inventory_hostname in groups['workers']
-
 - name: Generate WireGuard private key
   ansible.builtin.command: wg genkey
   register: wireguard_private_key
