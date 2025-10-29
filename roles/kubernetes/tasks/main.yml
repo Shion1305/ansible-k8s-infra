@@ -25,9 +25,13 @@
   register: kubernetes_containerd_config
   changed_when: false
 
+- name: Modify containerd configuration (enable systemd cgroups)
+  ansible.builtin.set_fact:
+    kubernetes_containerd_config_modified: "{{ kubernetes_containerd_config.stdout | regex_replace('SystemdCgroup = false', 'SystemdCgroup = true') }}"
+
 - name: Write containerd configuration
   ansible.builtin.copy:
-    content: "{{ kubernetes_containerd_config.stdout }}"
+    content: "{{ kubernetes_containerd_config_modified }}"
     dest: /etc/containerd/config.toml
     mode: "0644"
     owner: root
@@ -36,18 +40,11 @@
   register: kubernetes_containerd_config_written
   changed_when: kubernetes_containerd_config_written.diff | default([]) | length > 0
 
-- name: Enable systemd cgroups in containerd
-  ansible.builtin.lineinfile:
-    path: /etc/containerd/config.toml
-    regexp: "^\\s*SystemdCgroup = false"
-    line: "            SystemdCgroup = true"
-  register: kubernetes_containerd_systemd_cgroup
-
 - name: Prompt for containerd restart confirmation
   ansible.builtin.pause:
     prompt: "Containerd configuration changed on {{ inventory_hostname }}. Do you want to restart containerd? (yes/no)"
   register: kubernetes_containerd_restart_confirm
-  when: kubernetes_containerd_config_written.changed or kubernetes_containerd_systemd_cgroup.changed
+  when: kubernetes_containerd_config_written.changed
   run_once: false
 
 - name: Restart containerd if confirmed
@@ -55,7 +52,7 @@
     name: containerd
     state: restarted
   when: >
-    (kubernetes_containerd_config_written.changed or kubernetes_containerd_systemd_cgroup.changed)
+    kubernetes_containerd_config_written.changed
     and kubernetes_containerd_restart_confirm.user_input | default('no') | lower in ['yes', 'y']
 
 - name: Install Kubernetes packages
