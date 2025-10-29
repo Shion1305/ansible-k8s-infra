@@ -39,21 +39,9 @@
     backup: true
   register: kubernetes_containerd_config_written
   changed_when: kubernetes_containerd_config_written.diff | default([]) | length > 0
-
-- name: Prompt for containerd restart confirmation
-  ansible.builtin.pause:
-    prompt: "Containerd configuration changed on {{ inventory_hostname }}. Do you want to restart containerd? (yes/no)"
-  register: kubernetes_containerd_restart_confirm
-  when: kubernetes_containerd_config_written.changed
-  run_once: false
-
-- name: Restart containerd if confirmed
-  ansible.builtin.systemd:
-    name: containerd
-    state: restarted
-  when: >
-    kubernetes_containerd_config_written.changed
-    and kubernetes_containerd_restart_confirm.user_input | default('no') | lower in ['yes', 'y']
+  notify:
+    - Prompt for containerd restart
+    - Restart containerd
 
 - name: Install Kubernetes packages
   ansible.builtin.package:
