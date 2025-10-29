@@ -10,24 +10,34 @@ help:
   @echo "Kubernetes WireGuard Cluster - Ansible Automation"
   @echo ""
   @echo "Usage:"
-  @echo "  just deploy     - Deploy complete Kubernetes cluster (includes verification)"
+  @echo "  just deploy [host]  - Deploy cluster to all hosts or only the specified host"
   @echo "  just reset      - Reset the entire cluster (WARNING: destructive)"
   @echo "  just clean      - Clean up CNI bridges and restart services"
   @echo "  just lint       - Validate all playbooks with ansible-lint"
   @echo ""
   @echo "Examples:"
-  @echo "  just deploy     # Full cluster deployment with verification"
+  @echo "  just deploy           # Full cluster deployment with verification (all hosts)"
+  @echo "  just deploy worker-1  # Deploy & verify only on host 'worker-1'"
   @echo "  just reset      # Destroy everything and reset to clean state"
   @echo "  just clean      # Clean CNI interfaces"
   @echo "  just lint       # Check playbook syntax"
 
 # Deploy the complete cluster (runs deployment + verification)
-deploy:
-  @echo "Deploying Kubernetes cluster with WireGuard..."
-  uv run ansible-playbook -i inventory.yml site.yml
-  @echo "✅ Deployment phase complete, running verification..."
-  uv run ansible-playbook -i inventory.yml verify.yml
-  @echo "✅ Cluster fully deployed and verified"
+deploy host='':
+  @bash -uc '\
+    set -euo pipefail; \
+    if [ -n "{{host}}" ]; then \
+      echo "Deploying Kubernetes cluster with WireGuard... (limit: {{host}})"; \
+      LIMIT=( -l "{{host}}" ); \
+    else \
+      echo "Deploying Kubernetes cluster with WireGuard... (all hosts)"; \
+      LIMIT=(); \
+    fi; \
+    uv run ansible-playbook -i inventory.yml "${LIMIT[@]}" site.yml; \
+    echo "✅ Deployment phase complete, running verification..."; \
+    uv run ansible-playbook -i inventory.yml "${LIMIT[@]}" verify.yml; \
+    echo "✅ Cluster fully deployed and verified"; \
+  '
 
 # Reset the entire cluster (destructive!)
 reset:
