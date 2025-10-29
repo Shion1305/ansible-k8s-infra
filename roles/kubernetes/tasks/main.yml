@@ -34,6 +34,7 @@
     group: root
     backup: true
   register: kubernetes_containerd_config_written
+  changed_when: kubernetes_containerd_config_written.diff | default([]) | length > 0
 
 - name: Enable systemd cgroups in containerd
   ansible.builtin.lineinfile:
