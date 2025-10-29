@@ -11,17 +11,30 @@
       - lsb-release
     state: present
 
-- name: Disable swap for Kubernetes
-  ansible.builtin.command: swapoff -a
+# -----------------------------
+# Swap: disable only if enabled
+# -----------------------------
+- name: Check if any swap is active
+  ansible.builtin.command: swapon --summary
+  register: common_swapon_summary
   changed_when: false
 
-- name: Remove swap from fstab
+- name: Disable swap for Kubernetes when enabled
+  ansible.builtin.command: swapoff -a
+  when: common_swapon_summary.stdout | trim != ""
+  # `swapon --summary` should be empty if no swap is active.
+  changed_when: true
+
+- name: Remove any swap entries from fstab
+  # This is idempotent, if no swap entries exist, nothing changes.
   ansible.builtin.lineinfile:
     path: /etc/fstab
-    regexp: ".*swap.*"
-    state: absent
+    regexp: '^\s*[^#]+\s+none\s+swap\s+'
+    state: absent # Removes swap entries
+  # This will be marked as changed only when files changed by this task.
 
 - name: Load kernel modules
+  # This is idempotent, loading an already loaded module has no effect.
   community.general.modprobe:
     name: "{{ item }}"
     state: present
@@ -30,6 +43,7 @@
     - br_netfilter
 
 - name: Make kernel modules persistent
+  # Ensures the file exists with exactly this content, and these modules load at boot.
   ansible.builtin.copy:
     content: |
       overlay
@@ -38,6 +52,7 @@
     mode: "0644"
     owner: root
     group: root
+  # Marked as changed only when file content changes.
 
 - name: Set sysctl parameters for Kubernetes
   ansible.posix.sysctl:
@@ -49,55 +64,110 @@
     - { name: "net.bridge.bridge-nf-call-iptables", value: "1" }
     - { name: "net.bridge.bridge-nf-call-ip6tables", value: "1" }
     - { name: "net.ipv4.ip_forward", value: "1" }
+  # Marked as changed only when sysctl values change.
 
-- name: Fix DNS resolution for containerd (non-systemd-resolved systems)
-  block:
-    - name: Check if systemd-resolved is running
-      ansible.builtin.systemd:
-        name: systemd-resolved
-      register: common_systemd_resolved_status
-      failed_when: false
+# --------------------------------------------------------
+# DNS symlink for containerd: only on non-resolved systems
+# --------------------------------------------------------
+- name: Check if systemd-resolved is running
+  ansible.builtin.systemd:
+    name: systemd-resolved
+  register: common_systemd_resolved_status
+  failed_when: false
+  changed_when: false
 
-    - name: Create systemd resolve directory
-      ansible.builtin.file:
-        path: /run/systemd/resolve
-        state: directory
-        mode: "0755"
-      when: common_systemd_resolved_status.status.ActiveState|default('') != 'active'
+- name: Create systemd resolve directory (only if needed)
+  ansible.builtin.file:
+    path: /run/systemd/resolve
+    state: directory
+    mode: "0755"
+  when: common_systemd_resolved_status.status.ActiveState | default('') != 'active'
 
-    - name: Create resolv.conf symlink for containerd
-      ansible.builtin.file:
-        src: /etc/resolv.conf
-        dest: /run/systemd/resolve/resolv.conf
-        state: link
-        force: true
-      when: common_systemd_resolved_status.status.ActiveState|default('') != 'active'
+- name: Ensure resolv.conf symlink exists for containerd (only if needed)
+  ansible.builtin.file:
+    src: /etc/resolv.conf
+    dest: /run/systemd/resolve/resolv.conf
+    state: link
+    force: true
+  when: common_systemd_resolved_status.status.ActiveState | default('') != 'active'
 
-- name: Install CNI plugins
-  block:
-    - name: Download CNI plugins
-      ansible.builtin.get_url:
-        url: "https://github.com/containernetworking/plugins/releases/download/{{ cni_version }}/cni-plugins-linux-{{ architecture }}-{{ cni_version }}.tgz"
-        dest: "/tmp/cni-plugins-{{ architecture }}.tgz"
-        mode: "0644"
+# -------------------------
+# CNI plugins: version-aware
+# Only download/extract when the desired version isn't installed.
+# -------------------------
 
-    - name: Extract CNI plugins
-      ansible.builtin.unarchive:
-        src: "/tmp/cni-plugins-{{ architecture }}.tgz"
-        dest: /opt/cni/bin
-        remote_src: true
+- name: Define architecture mapping for CNI plugins
+  ansible.builtin.set_fact:
+    common_arch_map:
+      x86_64: amd64
+      aarch64: arm64
+      arm64: arm64
+      armv7l: arm
+      ppc64le: ppc64le
+      s390x: s390x
 
-    - name: Verify loopback plugin installation
-      ansible.builtin.stat:
-        path: /opt/cni/bin/loopback
-      register: common_loopback_plugin
+- name: Determine effective architecture for CNI plugins
+  ansible.builtin.set_fact:
+    common_arch_effective: "{{ common_arch_map[ansible_architecture] }}"
+  failed_when: ansible_architecture not in common_arch_map
 
-    - name: Fail if loopback plugin not found
-      ansible.builtin.fail:
-        msg: "CNI loopback plugin not found at /opt/cni/bin/loopback"
-      when: not common_loopback_plugin.stat.exists
+- name: Check for loopback CNI binary existence
+  ansible.builtin.stat:
+    path: /opt/cni/bin/loopback
+  register: common_loopback_plugin
 
-    - name: Clean up CNI archive
-      ansible.builtin.file:
-        path: "/tmp/cni-plugins-{{ architecture }}.tgz"
-        state: absent
+- name: Read installed CNI version marker (if any)
+  ansible.builtin.slurp:
+    src: /opt/cni/bin/.cni_version
+  register: common_cni_marker
+  failed_when: false
+  changed_when: false
+
+- name: Determine if desired CNI version is already installed
+  ansible.builtin.set_fact:
+    common_cni_installed_ok: >-
+      {{ common_loopback_plugin.stat.exists
+        and (common_cni_marker.content is defined)
+        and (common_cni_marker.content | b64decode | trim == cni_version) }}
+
+- name: Download CNI plugins (only if version mismatch)
+  ansible.builtin.get_url:
+    url: >-
+      https://github.com/containernetworking/plugins/releases/download/
+      {{ cni_version }}/cni-plugins-linux-{{ common_arch_effective }}-
+      {{ cni_version }}.tgz
+    dest: "/tmp/cni-plugins-{{ common_arch_effective }}-{{ cni_version }}.tgz"
+    mode: "0644"
+    checksum: "{{ cni_checksum | default(omit) }}"
+  when: not common_cni_installed_ok
+
+- name: Extract CNI plugins (only if version mismatch)
+  ansible.builtin.unarchive:
+    src: "/tmp/cni-plugins-{{ common_arch_effective }}-{{ cni_version }}.tgz"
+    dest: /opt/cni/bin
+    remote_src: true
+    # Avoid repeated untar by using a marker file after success
+  when: not common_cni_installed_ok
+
+- name: Write installed CNI version marker
+  ansible.builtin.copy:
+    content: "{{ cni_version }}\n"
+    dest: /opt/cni/bin/.cni_version
+    mode: "0644"
+  when: not common_cni_installed_ok
+
+- name: Verify loopback plugin installation
+  ansible.builtin.stat:
+    path: /opt/cni/bin/loopback
+  register: common_loopback_plugin_after
+
+- name: Fail if loopback plugin not found
+  ansible.builtin.fail:
+    msg: "CNI loopback plugin not found at /opt/cni/bin/loopback"
+  when: not common_loopback_plugin_after.stat.exists
+
+- name: Clean up downloaded CNI archive (if it was used)
+  ansible.builtin.file:
+    path: "/tmp/cni-plugins-{{ common_arch_effective }}-{{ cni_version }}.tgz"
+    state: absent
+  when: not common_cni_installed_ok

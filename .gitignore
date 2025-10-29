@@ -1,3 +1,7 @@
 ansible.log
 .idea
 **/.DS_Store
+
+# Secret host configurations - keep k8s-proxy public IP private
+inventory.secret.yml
+inventory.local.yml
