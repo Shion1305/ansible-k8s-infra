@@ -5,7 +5,7 @@ This Ansible playbook automates the deployment of a Kubernetes cluster with Wire
 ## Architecture Overview
 
 - **Control Plane**: k8s (Oracle Cloud, Tokyo)
-- **Worker Nodes**: cm4 (Raspberry Pi CM4), s2204 (Ubuntu x86_64) 
+- **Worker Nodes**: cm4 (Raspberry Pi CM4), s2204 (Ubuntu x86_64)
 - **Networking**: WireGuard tunnels + local network optimization
 - **CNI**: Flannel with custom configuration for WireGuard compatibility
 - **Firewall**: UFW standardized across all worker nodes
@@ -38,6 +38,7 @@ Ensure `k8s.shion1305.com` resolves to `150.230.214.233` (Oracle Cloud public IP
 ### 4. Cloud Firewall Rules
 
 Oracle Cloud security group must allow:
+
 - Port 6443/tcp (Kubernetes API)
 - Port 51820/udp (WireGuard)
 - Port 22/tcp (SSH)
@@ -83,6 +84,7 @@ ansible-playbook -i inventory.yml site.yml
 ```
 
 The playbook will:
+
 1. Install and configure prerequisites on all nodes
 2. Set up WireGuard tunnels
 3. Install Kubernetes components
@@ -97,7 +99,7 @@ Expected deployment time: **20-30 minutes** (vs ~3 hours manual)
 
 ## Playbook Structure
 
-```
+```text
 ansible-k8s-wireguard/
 ├── ansible.cfg              # Ansible configuration
 ├── inventory.yml            # Hosts and variables
@@ -127,23 +129,27 @@ ansible-k8s-wireguard/
 ## Key Features
 
 ### 🔒 **Security-First Design**
+
 - WireGuard private keys generated on each node
 - No plaintext secrets in playbooks
 - Proper file permissions and ownership
 - Minimal firewall rules
 
 ### 🚀 **Performance Optimized**
+
 - Local network traffic between cm4 ↔ s2204 (~0.5ms)
 - WireGuard tunnels for secure cross-site communication (~8ms)
 - Proper CNI plugin installation prevents CoreDNS issues
 
 ### 🛠 **Production Ready**
+
 - Idempotent operations (safe to re-run)
 - Comprehensive error handling
 - Health checks and verification
 - Backup configurations before changes
 
 ### 🔧 **Troubleshooting Built-in**
+
 - Addresses all known issues from manual deployment
 - Automatic CNI plugin installation
 - WireGuard connectivity verification
@@ -272,24 +278,28 @@ ansible all -i inventory.yml -m systemd -a "name=kubelet state=restarted" -b
 ### Common Issues
 
 1. **SSH Connection Failed**
+
    ```bash
    # Test connectivity
    ansible all -i inventory.yml -m ping
    ```
 
 2. **WireGuard Not Connecting**
+
    ```bash
    # Check WireGuard status
    ansible all -i inventory.yml -m shell -a "systemctl status wg-quick@wg0" -b
    ```
 
 3. **Nodes Not Ready**
+
    ```bash
    # Check kubelet logs
    ansible all -i inventory.yml -m shell -a "journalctl -u kubelet --no-pager -l" -b
    ```
 
 4. **CoreDNS Issues**
+
    ```bash
    # Verify CNI plugins
    ansible all -i inventory.yml -m shell -a "ls /opt/cni/bin/ | grep loopback" -b

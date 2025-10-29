@@ -16,45 +16,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Initial Setup
 ```bash
-just install                    # Install Ansible and all dependencies
+just lint                       # Validate playbooks before first deployment
 ```
 
-### Quick Commands
+### Main Commands
 ```bash
-just ping                       # Test connectivity to all nodes
-just deploy                     # Deploy complete Kubernetes cluster
-just verify                     # Run comprehensive health checks
-just lint                       # Validate all playbooks with ansible-lint
-just status                     # Check cluster node and pod status
-just troubleshoot               # Run diagnostic playbooks
-just reset                      # Reset entire cluster (destructive!)
-```
-
-### Testing & Verification
-```bash
-just test                       # Run connectivity and health tests
+just deploy                     # Deploy complete cluster (site.yml → verify.yml)
+just reset                      # Reset entire cluster (destructive, prompts for confirmation)
 just clean                      # Clean CNI bridges and restart services
-just wireguard                  # Check WireGuard connectivity
-just logs                       # View recent kubelet logs
+just lint                       # Validate all playbooks with ansible-lint
 ```
 
-### Direct Ansible Commands
+### Workflow
+The `just deploy` command runs the complete workflow:
+1. **Deployment Phase** - Runs `site.yml` to configure cluster
+2. **Verification Phase** - Runs `verify.yml` to validate everything is working
+
+If deployment succeeds but verification fails, re-run `just deploy` to retry both phases.
+
+### Advanced / Debugging
 ```bash
-# Deploy with tags (partial deployment)
+# Deploy with verbose output
+uv run ansible-playbook -i inventory.yml site.yml -vv
+
+# Deploy specific tags
 uv run ansible-playbook -i inventory.yml site.yml --tags=wireguard
-uv run ansible-playbook -i inventory.yml site.yml --limit=workers
+
+# Deploy specific hosts
 uv run ansible-playbook -i inventory.yml site.yml --limit=k8s-proxy
 
-# Verbose debugging
-uv run ansible-playbook -i inventory.yml site.yml -vvv
+# Verbose cluster verification
+uv run ansible-playbook -i inventory.yml verify.yml -vv
 
-# Maintenance operations
-uv run ansible-playbook -i inventory.yml maintenance.yml --tags=health-check
-uv run ansible-playbook -i inventory.yml maintenance.yml --tags=clean-cni
-
-# Development builds with verbose output
-just dev-deploy                 # Deploy with verbose output
-just dev-test                   # Test with verbose output
+# Run diagnostics
+uv run ansible-playbook -i inventory.yml troubleshoot.yml
 ```
 
 ## Architecture
@@ -254,9 +249,10 @@ See **README.md** for:
 ## Notes for Future Development
 
 - Always validate changes with `just lint` before committing
-- Test partial deployments on single nodes before rolling out to all
+- The main workflow is `just deploy` - it automatically runs site.yml then verify.yml
+- To test partial deployments, use direct ansible-playbook commands with `--tags` or `--limit`
 - WireGuard configuration changes require service restart (automatic via handlers)
 - The project is designed for heterogeneous hardware - test on both ARM64 and x86_64
 - Keep `uv.lock` in sync when updating Python dependencies
 - Maintain idempotency when adding new tasks
-- Use `just` command runner (instead of `make`) - simpler syntax and better for this workflow
+- Use `just` command runner - minimalist design with only essential commands
