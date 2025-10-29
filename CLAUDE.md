@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **ansible-k8s-wireguard** is an Ansible automation framework that deploys production-ready Kubernetes clusters with WireGuard overlay networking across heterogeneous infrastructure (cloud + on-premises). It automates a 3+ hour manual configuration process into 20-30 minutes.
 
 **Target Infrastructure:**
+
 - **Control Plane (k8s):** Oracle Cloud instance in Tokyo (ARM64)
 - **Worker Nodes:** Raspberry Pi CM4 (ARM64) and Ubuntu x86_64 VM
 
@@ -15,11 +16,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Setup
 
 ### Initial Setup
+
 ```bash
 just lint                       # Validate playbooks before first deployment
 ```
 
 ### Main Commands
+
 ```bash
 just deploy                     # Deploy complete cluster (site.yml → verify.yml)
 just reset                      # Reset entire cluster (destructive, prompts for confirmation)
@@ -28,13 +31,16 @@ just lint                       # Validate all playbooks with ansible-lint
 ```
 
 ### Workflow
+
 The `just deploy` command runs the complete workflow:
+
 1. **Deployment Phase** - Runs `site.yml` to configure cluster
 2. **Verification Phase** - Runs `verify.yml` to validate everything is working
 
 If deployment succeeds but verification fails, re-run `just deploy` to retry both phases.
 
 ### Advanced / Debugging
+
 ```bash
 # Deploy with verbose output
 uv run ansible-playbook -i inventory.yml site.yml -vv
@@ -55,6 +61,7 @@ uv run ansible-playbook -i inventory.yml troubleshoot.yml
 ## Architecture
 
 ### Playbooks
+
 - **site.yml** (307 lines): Main deployment orchestration - runs sequentially through all setup phases
 - **verify.yml** (209 lines): Comprehensive cluster health verification
 - **maintenance.yml** (151 lines): Operational tasks (tagged: health-check, clean-cni, wireguard-check)
@@ -64,7 +71,8 @@ uv run ansible-playbook -i inventory.yml troubleshoot.yml
 - **test-workers.yml**: Worker-specific tests
 
 ### Roles (6 modular components)
-1. **common** (104 lines): Prerequisites - packages, kernel modules, sysctl networking, CNI plugins
+
+1. **common** (173 lines): Prerequisites - packages, kernel modules, sysctl networking, CNI plugins
 2. **kubernetes** (80+ lines): containerd + Kubernetes components (kubelet, kubeadm, kubectl)
 3. **control_plane**: kubeadm init and kubeconfig setup for control plane
 4. **worker**: kubeadm join for worker nodes
@@ -72,6 +80,7 @@ uv run ansible-playbook -i inventory.yml troubleshoot.yml
 6. **cni**: Flannel CNI deployment and verification
 
 ### Deployment Flow (site.yml)
+
 1. Setup common prerequisites across all hosts
 2. Generate WireGuard keys locally on each node
 3. Configure WireGuard networking with UFW firewall rules
@@ -82,6 +91,7 @@ uv run ansible-playbook -i inventory.yml troubleshoot.yml
 8. Verify final cluster status
 
 ### Inventory Structure (inventory.yml)
+
 ```yaml
 control_plane:  # k8s node
   hosts:
@@ -104,6 +114,7 @@ workers:  # cm4, s2204, and secret hosts
 ```
 
 ### Secret Hosts
+
 To keep sensitive host information (like public IPs) private and out of version control:
 
 1. **Add to inventory.yml** with internal/local IPs and hostnames (not public IPs)
@@ -113,14 +124,16 @@ To keep sensitive host information (like public IPs) private and out of version 
 3. **Reference by hostname** in ansible commands/playbooks, not by public IP
 
 **Example: k8s-proxy host**
+
 - Stored in inventory.yml with `ansible_host: prox` (hostname, not IP)
 - Uses internal WireGuard IP: 10.0.0.21
 - Public IP is kept private and not committed to git
-- Deploys like any other worker node: `make deploy --limit=k8s-proxy`
+- Deploys like any other worker node: `just deploy =k8s-proxy`
 
 ## Key Configuration Details
 
 ### WireGuard
+
 - **Template**: `roles/wireguard/templates/wg0.conf.j2`
 - Overlay network: 10.0.0.0/24
 - Private keys generated locally on each node (never transmitted)
@@ -128,12 +141,14 @@ To keep sensitive host information (like public IPs) private and out of version 
 - Control plane acts as WireGuard endpoint
 
 ### Kubernetes Networking
+
 - **Pod CIDR**: 10.244.0.0/16 (Flannel)
 - **Service CIDR**: 10.96.0.0/12
 - **kubeadm init** uses WireGuard IP as advertise address
 - Kubelet configured with node-ip pointing to WireGuard interface
 
 ### Ansible Configuration (ansible.cfg)
+
 - Host key checking disabled
 - SSH connection pooling and pipelining enabled
 - Timeout: 30 seconds
@@ -142,6 +157,7 @@ To keep sensitive host information (like public IPs) private and out of version 
 ## Important Implementation Notes
 
 ### Security
+
 - WireGuard private keys never transmitted (generated locally)
 - SSH key-based authentication required
 - UFW firewall configured with minimal required rules
@@ -149,17 +165,20 @@ To keep sensitive host information (like public IPs) private and out of version 
 - `no_log` flags used for sensitive operations
 
 ### Idempotency
+
 - All tasks are safe to re-run
 - Conditional checks prevent duplicate installations
 - Handlers manage service restarts cleanly
 
 ### Performance
+
 - Local network latency: ~0.5ms
 - WireGuard tunnel latency: ~8ms with gigabit throughput
 - SSH connection pooling reduces overhead
 - Pre-installed CNI plugins prevent CoreDNS startup issues
 
 ### Error Handling
+
 - Configuration backups before changes
 - Health checks verify each phase
 - Troubleshooting playbook for diagnostics
@@ -173,6 +192,7 @@ To keep sensitive host information (like public IPs) private and out of version 
 **Linter**: ansible-lint >= 25.7.0
 
 All commands should be prefixed with `uv run` for consistency:
+
 ```bash
 uv run ansible-playbook ...
 uv run ansible-lint
@@ -181,39 +201,43 @@ uv run ansible-lint
 ## CI/CD
 
 GitHub Actions (`.github/workflows/ansible-lint.yml`):
+
 - Runs ansible-lint on push to main and all PRs
 - Uses aqua to install tools
-- Executes `make lint`
+- Executes `just lint`
 
 ## Common Development Tasks
 
 ### Adding a New Role
+
 1. Create `roles/new-role/tasks/main.yml`
 2. Add handler file if needed: `roles/new-role/handlers/main.yml`
 3. Include role in appropriate playbook with `- include_role: name=new-role`
-4. Run `make lint` to validate
+4. Run `just lint` to validate
 
 ### Modifying WireGuard Configuration
+
 - Edit `roles/wireguard/templates/wg0.conf.j2`
 - Key generation is automatic from inventory variables
-- Test with `make deploy --limit=<host>` on a single node first
+- Test with `just deploy <host>` on a single node first
 
 ### Troubleshooting Cluster Issues
+
 ```bash
-make troubleshoot                           # Run all diagnostics
-make logs                                   # View kubelet logs
-uv run ansible-playbook -i inventory.yml troubleshoot.yml -vvv  # Debug mode
+uv run ansible-playbook -i inventory.yml troubleshoot.yml -vvv        # Run all diagnostics (debug mode)
+ansible all -i inventory.yml -a "journalctl -u kubelet --no-pager"    # View kubelet logs on all nodes
 ```
 
 ### Fixing NotReady Nodes
+
 ```bash
-make fix-nodes                              # Restart kubelet and verify
-# Or manually: make clean && make deploy --limit=workers
+just fix-nodes                              # Restart kubelet and verify
+# Or manually: just clean && just deploy workers
 ```
 
 ## File Structure Summary
 
-```
+```text
 ├── justfile                              # Task automation (use instead of make!)
 ├── Makefile                              # Legacy - superseded by justfile
 ├── ansible.cfg                           # Ansible configuration
@@ -240,6 +264,7 @@ make fix-nodes                              # Restart kubelet and verify
 ## Related Documentation
 
 See **README.md** for:
+
 - Detailed deployment instructions
 - Network topology diagrams
 - Troubleshooting guide

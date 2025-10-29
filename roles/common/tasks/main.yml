@@ -22,7 +22,7 @@
 - name: Disable swap for Kubernetes when enabled
   ansible.builtin.command: swapoff -a
   when: common_swapon_summary.stdout | trim != ""
-  # `swapoff --summary` should be empty if no swap is active.
+  # `swapon --summary` should be empty if no swap is active.
   changed_when: true
 
 - name: Remove any swap entries from fstab
