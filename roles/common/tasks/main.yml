@@ -96,7 +96,8 @@
 # Only download/extract when the desired version isn't installed.
 # -------------------------
 
-- ansible.builtin.set_fact:
+- name: Define architecture mapping for CNI plugins
+  ansible.builtin.set_fact:
     common_arch_map:
       x86_64: amd64
       aarch64: arm64
@@ -105,7 +106,7 @@
       ppc64le: ppc64le
       s390x: s390x
 
-- name: Map architecture for CNI artifacts
+- name: Determine effective architecture for CNI plugins
   ansible.builtin.set_fact:
     common_arch_effective: "{{ common_arch_map[ansible_architecture] }}"
   failed_when: ansible_architecture not in common_arch_map
@@ -126,12 +127,15 @@
   ansible.builtin.set_fact:
     common_cni_installed_ok: >-
       {{ common_loopback_plugin.stat.exists
-         and (common_cni_marker.content is defined)
-         and (common_cni_marker.content | b64decode | trim == cni_version) }}
+        and (common_cni_marker.content is defined)
+        and (common_cni_marker.content | b64decode | trim == cni_version) }}
 
-- name: Download CNI plugins (only if version mismatch) {{ common_arch_effective }}
+- name: Download CNI plugins (only if version mismatch)
   ansible.builtin.get_url:
-    url: "https://github.com/containernetworking/plugins/releases/download/{{ cni_version }}/cni-plugins-linux-{{ common_arch_effective }}-{{ cni_version }}.tgz"
+    url: >-
+      https://github.com/containernetworking/plugins/releases/download/
+      {{ cni_version }}/cni-plugins-linux-{{ common_arch_effective }}-
+      {{ cni_version }}.tgz
     dest: "/tmp/cni-plugins-{{ common_arch_effective }}-{{ cni_version }}.tgz"
     mode: "0644"
     checksum: "{{ cni_checksum | default(omit) }}"
