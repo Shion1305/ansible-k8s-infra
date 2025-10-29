@@ -11,17 +11,30 @@
       - lsb-release
     state: present
 
-- name: Disable swap for Kubernetes
-  ansible.builtin.command: swapoff -a
+# -----------------------------
+# Swap: disable only if enabled
+# -----------------------------
+- name: Check if any swap is active
+  ansible.builtin.command: swapon --summary
+  register: common_swapon_summary
   changed_when: false
 
-- name: Remove swap from fstab
+- name: Disable swap for Kubernetes when enabled
+  ansible.builtin.command: swapoff -a
+  when: common_swapon_summary.stdout | trim != ""
+  # `swapoff --summary` should be empty if no swap is active.
+  changed_when: true
+
+- name: Remove any swap entries from fstab
+  # This is idempotent, if no swap entries exist, nothing changes.
   ansible.builtin.lineinfile:
     path: /etc/fstab
-    regexp: ".*swap.*"
-    state: absent
+    regexp: '^\s*[^#]+\s+none\s+swap\s+'
+    state: absent # Removes swap entries
+  # This will be marked as changed only when files changed by this task.
 
 - name: Load kernel modules
+  # This is idempotent, loading an already loaded module has no effect.
   community.general.modprobe:
     name: "{{ item }}"
     state: present
@@ -30,6 +43,7 @@
     - br_netfilter
 
 - name: Make kernel modules persistent
+  # Ensures the file exists with exactly this content, and these modules load at boot.
   ansible.builtin.copy:
     content: |
       overlay
@@ -38,6 +52,7 @@
     mode: "0644"
     owner: root
     group: root
+  # Marked as changed only when file content changes.
 
 - name: Set sysctl parameters for Kubernetes
   ansible.posix.sysctl:
@@ -49,6 +64,7 @@
     - { name: "net.bridge.bridge-nf-call-iptables", value: "1" }
     - { name: "net.bridge.bridge-nf-call-ip6tables", value: "1" }
     - { name: "net.ipv4.ip_forward", value: "1" }
+  # Marked as changed only when sysctl values change.
 
 - name: Fix DNS resolution for containerd (non-systemd-resolved systems)
   block:
@@ -56,6 +72,7 @@
       ansible.builtin.systemd:
         name: systemd-resolved
       register: common_systemd_resolved_status
+      changed_when: false # This is just a check
       failed_when: false
 
     - name: Create systemd resolve directory
@@ -63,6 +80,7 @@
         path: /run/systemd/resolve
         state: directory
         mode: "0755"
+      # Skips entirely when systemd-resolved is active.
       when: common_systemd_resolved_status.status.ActiveState|default('') != 'active'
 
     - name: Create resolv.conf symlink for containerd

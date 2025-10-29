@@ -8,18 +8,18 @@
   gather_facts: true
 
   pre_tasks:
-    - name: Update package cache
-      ansible.builtin.package:
+    - name: Update apt cache (Debian/Ubuntu)
+      ansible.builtin.apt:
         update_cache: true
-      when: ansible_os_family == "Debian"
-      failed_when: false
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian" # Ubuntu is part of Debian family
 
     - name: Ensure required directories exist
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
         mode: "0755"
-      loop:
+      loop: # Ensure these directories exist on all nodes
         - /opt/cni/bin
         - /etc/wireguard
         - /etc/kubernetes
