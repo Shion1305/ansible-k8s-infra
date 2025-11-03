@@ -101,7 +101,12 @@
 
     - name: Display key status
       ansible.builtin.debug:
-        msg: "{{ 'Using existing WireGuard keys from config' if wg_config_stat.stat.exists and not (wireguard_regenerate_keys | default(false) | bool) else 'Generated new WireGuard keys' }}"
+        msg: >-
+          {{
+            'Using existing WireGuard keys from config'
+            if wg_config_stat.stat.exists and not (wireguard_regenerate_keys | default(false) | bool)
+            else 'Generated new WireGuard keys'
+          }}
 
 - name: Configure WireGuard
   hosts: all
