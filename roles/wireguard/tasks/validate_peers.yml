@@ -19,11 +19,12 @@
   changed_when: false
   failed_when: false
 
-- name: Build expected peers list from inventory
+- name: Build expected peers list from current play hosts
   ansible.builtin.set_fact:
     wireguard_expected_peer_keys: >-
       {{
-        groups['workers']
+        ansible_play_hosts_all
+        | intersect(groups['workers'])
         | map('extract', hostvars)
         | selectattr('wireguard_public_key', 'defined')
         | map(attribute='wireguard_public_key')
