@@ -4,6 +4,7 @@ Address = {{ wireguard_ip }}/24
 ListenPort = {{ wireguard_port }}
 {% endif %}
 PrivateKey = {{ wireguard_private_key }}
+# PublicKey = {{ wireguard_public_key }}
 
 {% if inventory_hostname in groups['control_plane'] %}
 # Worker nodes
