@@ -4,11 +4,117 @@ from configparser import ConfigParser
 from io import StringIO
 
 
-def parse_wireguard_peers(config_text):
+def parse_wireguard_config(config_text):
     """
-    Parse WireGuard configuration and extract peer information using configparser.
+    Parse WireGuard configuration and extract both interface and peer information.
 
     WireGuard configs are INI-like format with [Interface] and [Peer] sections.
+
+    Args:
+        config_text: String content of WireGuard configuration file
+
+    Returns:
+        Dictionary with 'interface' and 'peers' keys:
+        {
+            'interface': {
+                'private_key': 'base64_key',
+                'public_key': 'base64_key',  # from comment if present
+                'address': '10.0.0.20/24',
+                'listen_port': '51820' (optional)
+            },
+            'peers': {
+                'peer_name': {
+                    'public_key': 'base64_key',
+                    'allowed_ips': '10.0.0.3/32',
+                    'endpoint': 'host:port' (optional),
+                    'persistent_keepalive': '25' (optional)
+                }
+            }
+        }
+    """
+    if not config_text or not config_text.strip():
+        return {'interface': {}, 'peers': {}}
+
+    interface = {}
+    peers = {}
+    current_section = None
+    current_comment = None
+    current_data = None
+
+    lines = config_text.split('\n')
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Check for comments
+        if stripped.startswith('#'):
+            comment_text = stripped[1:].strip()
+            # Check if this is a PublicKey comment in interface section
+            if current_section == 'interface' and 'publickey' in comment_text.lower():
+                # Extract public key from comment like "# PublicKey = base64key..."
+                if '=' in comment_text:
+                    key_part = comment_text.split('=', 1)[0].strip().lower()
+                    value_part = comment_text.split('=', 1)[1].strip()
+                    if key_part == 'publickey':
+                        interface['public_key'] = value_part
+            else:
+                # Regular comment (peer name, etc.)
+                current_comment = comment_text
+            continue
+
+        # Check for section headers
+        if stripped.startswith('['):
+            # Save previous peer if exists
+            if current_section == 'peer' and current_data and current_data.get('publickey'):
+                peer_name = current_comment or current_data['publickey'][:12]
+                peers[peer_name] = {
+                    'public_key': current_data['publickey'],
+                    'allowed_ips': current_data.get('allowedips', ''),
+                }
+                if 'endpoint' in current_data:
+                    peers[peer_name]['endpoint'] = current_data['endpoint']
+                if 'persistentkeepalive' in current_data:
+                    peers[peer_name]['persistent_keepalive'] = current_data['persistentkeepalive']
+
+            # Start new section
+            if '[Peer]' in stripped:
+                current_section = 'peer'
+                current_data = {}
+                current_comment = None
+            elif '[Interface]' in stripped:
+                current_section = 'interface'
+                current_data = interface
+                current_comment = None
+            continue
+
+        # Parse key-value pairs
+        if '=' in stripped and current_data is not None:
+            key, value = stripped.split('=', 1)
+            key = key.strip().lower()
+            value = value.strip()
+            current_data[key] = value
+
+    # Don't forget the last peer
+    if current_section == 'peer' and current_data and current_data.get('publickey'):
+        peer_name = current_comment or current_data['publickey'][:12]
+        peers[peer_name] = {
+            'public_key': current_data['publickey'],
+            'allowed_ips': current_data.get('allowedips', ''),
+        }
+        if 'endpoint' in current_data:
+            peers[peer_name]['endpoint'] = current_data['endpoint']
+        if 'persistentkeepalive' in current_data:
+            peers[peer_name]['persistent_keepalive'] = current_data['persistentkeepalive']
+
+    return {'interface': interface, 'peers': peers}
+
+
+def parse_wireguard_peers(config_text):
+    """
+    Parse WireGuard configuration and extract peer information.
+
+    This is a convenience wrapper around parse_wireguard_config that returns
+    only the peers dictionary for backward compatibility.
 
     Args:
         config_text: String content of WireGuard configuration file
@@ -24,70 +130,8 @@ def parse_wireguard_peers(config_text):
             }
         }
     """
-    if not config_text or not config_text.strip():
-        return {}
-
-    peers = {}
-    current_section = None
-    current_comment = None
-
-    # Parse line by line to handle multiple [Peer] sections and comments
-    # configparser doesn't handle duplicate section names well
-    lines = config_text.split('\n')
-    peer_data = None
-
-    for line in lines:
-        stripped = line.strip()
-
-        # Check for comment (peer name)
-        if stripped.startswith('#'):
-            current_comment = stripped[1:].strip()
-            continue
-
-        # Check for section headers
-        if stripped.startswith('['):
-            # Save previous peer if exists
-            if peer_data and peer_data.get('publickey'):
-                peer_name = current_comment or peer_data['publickey'][:12]
-                peers[peer_name] = {
-                    'public_key': peer_data['publickey'],
-                    'allowed_ips': peer_data.get('allowedips', ''),
-                }
-                if 'endpoint' in peer_data:
-                    peers[peer_name]['endpoint'] = peer_data['endpoint']
-                if 'persistentkeepalive' in peer_data:
-                    peers[peer_name]['persistent_keepalive'] = peer_data['persistentkeepalive']
-
-            # Start new section
-            if '[Peer]' in stripped:
-                current_section = 'peer'
-                peer_data = {}
-                current_comment = None
-            elif '[Interface]' in stripped:
-                current_section = 'interface'
-                peer_data = None
-            continue
-
-        # Parse key-value pairs
-        if '=' in stripped and peer_data is not None:
-            key, value = stripped.split('=', 1)
-            key = key.strip().lower()
-            value = value.strip()
-            peer_data[key] = value
-
-    # Don't forget the last peer
-    if peer_data and peer_data.get('publickey'):
-        peer_name = current_comment or peer_data['publickey'][:12]
-        peers[peer_name] = {
-            'public_key': peer_data['publickey'],
-            'allowed_ips': peer_data.get('allowedips', ''),
-        }
-        if 'endpoint' in peer_data:
-            peers[peer_name]['endpoint'] = peer_data['endpoint']
-        if 'persistentkeepalive' in peer_data:
-            peers[peer_name]['persistent_keepalive'] = peer_data['persistentkeepalive']
-
-    return peers
+    result = parse_wireguard_config(config_text)
+    return result.get('peers', {})
 
 
 def merge_wireguard_peers(existing_peers, new_peers):
@@ -150,6 +194,7 @@ class FilterModule:
     def filters(self):
         """Return filter mappings."""
         return {
+            'parse_wireguard_config': parse_wireguard_config,
             'parse_wireguard_peers': parse_wireguard_peers,
             'merge_wireguard_peers': merge_wireguard_peers,
             'filter_peers_by_inventory': filter_peers_by_inventory,
