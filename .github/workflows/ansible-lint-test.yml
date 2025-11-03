@@ -1,5 +1,5 @@
 ---
-name: Ansible Lint
+name: Ansible Lint and Test
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
       - main
 
 jobs:
-  lint:
+  lint-and-test:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,4 +26,7 @@ jobs:
         run: aqua i -l
 
       - name: Run ansible-lint
-        run: make lint
+        run: just lint
+
+      - name: Run Test
+        run: just test
