@@ -1,0 +1,63 @@
+---
+# Merge existing WireGuard peers with peers from current Ansible play
+# This ensures partial deployments don't remove other peers from control plane
+
+- name: Build peer dictionary from current play hosts
+  ansible.builtin.set_fact:
+    wireguard_current_play_peers: >-
+      {{
+        dict(
+          ansible_play_hosts_all
+          | map('extract', hostvars)
+          | selectattr('inventory_hostname', 'in', groups['workers'])
+          | map(attribute='inventory_hostname')
+          | zip(
+              ansible_play_hosts_all
+              | map('extract', hostvars)
+              | selectattr('inventory_hostname', 'in', groups['workers'])
+              | map('dict2items')
+              | map('items2dict')
+            )
+          | map('combine', {
+              'public_key': '',
+              'allowed_ips': ''
+            })
+        )
+      }}
+  when: false  # This complex method is hard to maintain
+
+- name: Build current play peers (simpler approach)
+  ansible.builtin.set_fact:
+    wireguard_current_play_peers: {}
+
+- name: Add each worker from current play to peers dictionary
+  ansible.builtin.set_fact:
+    wireguard_current_play_peers: >-
+      {{
+        wireguard_current_play_peers | combine({
+          item: {
+            'public_key': hostvars[item]['wireguard_public_key'],
+            'allowed_ips': hostvars[item]['wireguard_ip'] + '/32'
+          }
+        })
+      }}
+  loop: "{{ ansible_play_hosts_all }}"
+  when:
+    - item in groups['workers']
+    - hostvars[item]['wireguard_public_key'] is defined
+
+- name: Display peers from current play
+  ansible.builtin.debug:
+    msg: >-
+      Current play includes {{ wireguard_current_play_peers.keys() | list | length }} worker(s):
+      {{ wireguard_current_play_peers.keys() | list | join(', ') }}
+
+- name: Merge existing peers with current play peers
+  ansible.builtin.set_fact:
+    wireguard_merged_peers: "{{ wireguard_existing_peers | merge_wireguard_peers(wireguard_current_play_peers) }}"
+
+- name: Display merged peer configuration
+  ansible.builtin.debug:
+    msg:
+      - "Merged configuration contains {{ wireguard_merged_peers.keys() | list | length }} total peer(s)"
+      - "Peers: {{ wireguard_merged_peers.keys() | list | sort | join(', ') }}"

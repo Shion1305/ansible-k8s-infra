@@ -5,3 +5,5 @@ ansible.log
 # Secret host configurations - keep k8s-proxy public IP private
 inventory.secret.yml
 inventory.local.yml
+__pycache__/
+*.pyc

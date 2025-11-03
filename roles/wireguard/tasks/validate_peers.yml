@@ -1,0 +1,77 @@
+---
+# Validate WireGuard peer configuration on control plane
+# Ensures all inventory workers are properly configured as peers
+
+- name: Get current WireGuard interface status
+  ansible.builtin.command: "wg show {{ wireguard_interface }}"
+  register: wireguard_status
+  changed_when: false
+  failed_when: false
+
+- name: Display WireGuard interface status
+  ansible.builtin.debug:
+    var: wireguard_status.stdout_lines
+  when: wireguard_status.rc == 0
+
+- name: Get list of configured peer public keys
+  ansible.builtin.command: "wg show {{ wireguard_interface }} peers"
+  register: wireguard_peers_list
+  changed_when: false
+  failed_when: false
+
+- name: Build expected peers list from inventory
+  ansible.builtin.set_fact:
+    wireguard_expected_peer_keys: >-
+      {{
+        groups['workers']
+        | map('extract', hostvars)
+        | selectattr('wireguard_public_key', 'defined')
+        | map(attribute='wireguard_public_key')
+        | list
+      }}
+
+- name: Parse actual configured peers
+  ansible.builtin.set_fact:
+    wireguard_actual_peer_keys: "{{ wireguard_peers_list.stdout_lines | default([]) }}"
+  when: wireguard_peers_list.rc == 0
+
+- name: Verify all inventory workers are configured as peers
+  ansible.builtin.assert:
+    that:
+      - item in wireguard_actual_peer_keys
+    fail_msg: "Worker peer with public key {{ item[:16] }}... is missing from WireGuard configuration"
+    success_msg: "Peer {{ item[:16] }}... is properly configured"
+    quiet: true
+  loop: "{{ wireguard_expected_peer_keys }}"
+  when:
+    - wireguard_peers_list.rc == 0
+    - wireguard_expected_peer_keys | length > 0
+
+- name: Check for extra peers not in inventory
+  ansible.builtin.set_fact:
+    wireguard_extra_peers: >-
+      {{
+        wireguard_actual_peer_keys | difference(wireguard_expected_peer_keys)
+      }}
+  when:
+    - wireguard_peers_list.rc == 0
+    - wireguard_actual_peer_keys is defined
+
+- name: Report extra peers (not in current inventory)
+  ansible.builtin.debug:
+    msg:
+      - "Found {{ wireguard_extra_peers | length }} peer(s) in WireGuard config that are not in inventory"
+      - "This is expected for partial deployments and helps preserve peer state"
+      - "Extra peers: {{ wireguard_extra_peers | map('regex_replace', '^(.{16}).*', '\\1...') | list }}"
+  when:
+    - wireguard_extra_peers is defined
+    - wireguard_extra_peers | length > 0
+
+- name: Validation summary
+  ansible.builtin.debug:
+    msg:
+      - "Peer validation complete:"
+      - "  Expected peers from inventory: {{ wireguard_expected_peer_keys | length }}"
+      - "  Actual configured peers: {{ wireguard_actual_peer_keys | default([]) | length }}"
+      - "  Extra peers preserved: {{ wireguard_extra_peers | default([]) | length }}"
+  when: wireguard_peers_list.rc == 0

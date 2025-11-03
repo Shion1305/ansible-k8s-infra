@@ -42,13 +42,47 @@
           - wireguard-tools
         state: present
 
-    - name: Generate WireGuard private key
+    - name: Check if WireGuard config exists
+      ansible.builtin.stat:
+        path: "/etc/wireguard/{{ wireguard_interface }}.conf"
+      register: wg_config_stat
+
+    - name: Read existing WireGuard configuration
+      ansible.builtin.slurp:
+        src: "/etc/wireguard/{{ wireguard_interface }}.conf"
+      register: wg_config_content
+      when: wg_config_stat.stat.exists
+      no_log: true
+
+    - name: Parse existing WireGuard configuration
+      ansible.builtin.set_fact:
+        wg_config_parsed: "{{ wg_config_content.content | b64decode | parse_wireguard_config }}"
+      when: wg_config_stat.stat.exists
+      no_log: true
+
+    - name: Extract existing keys from config
+      ansible.builtin.set_fact:
+        wireguard_private_key: "{{ wg_config_parsed.interface.privatekey | default('') }}"
+        wireguard_public_key: "{{ wg_config_parsed.interface.public_key | default('') }}"
+      when:
+        - wg_config_stat.stat.exists
+        - not (wireguard_regenerate_keys | default(false) | bool)
+        - wg_config_parsed.interface.privatekey is defined
+        - wg_config_parsed.interface.public_key is defined
+      no_log: true
+
+    - name: Generate new WireGuard private key
       ansible.builtin.command: wg genkey
       register: private_key
       changed_when: false
       no_log: true
+      when: >
+        not wg_config_stat.stat.exists or
+        (wireguard_regenerate_keys | default(false) | bool) or
+        wireguard_private_key is not defined or
+        wireguard_private_key == ''
 
-    - name: Generate WireGuard public key
+    - name: Generate new WireGuard public key
       ansible.builtin.shell:
         cmd: set -o pipefail && echo "{{ private_key.stdout }}" | wg pubkey
       args:
@@ -56,12 +90,23 @@
       register: public_key
       changed_when: false
       no_log: true
+      when: private_key is not skipped
 
-    - name: Store keys in facts
+    - name: Store newly generated keys in facts
       ansible.builtin.set_fact:
         wireguard_private_key: "{{ private_key.stdout }}"
         wireguard_public_key: "{{ public_key.stdout }}"
       no_log: true
+      when: private_key is not skipped
+
+    - name: Display key status
+      ansible.builtin.debug:
+        msg: >-
+          {{
+            'Using existing WireGuard keys from config'
+            if wg_config_stat.stat.exists and not (wireguard_regenerate_keys | default(false) | bool)
+            else 'Generated new WireGuard keys'
+          }}
 
 - name: Configure WireGuard
   hosts: all
@@ -70,6 +115,21 @@
   tags: wireguard
 
   tasks:
+    # Incremental peer configuration for control plane
+    - name: Fetch existing WireGuard peer state on control plane
+      ansible.builtin.include_tasks: roles/wireguard/tasks/fetch_existing_peers.yml
+      when: inventory_hostname in groups['control_plane']
+
+    - name: Merge peer configurations on control plane
+      ansible.builtin.include_tasks: roles/wireguard/tasks/merge_peer_config.yml
+      when: inventory_hostname in groups['control_plane']
+
+    # Dry-run mode: Generate config to temp location and show diff
+    - name: Generate WireGuard configuration preview (dry-run mode)
+      ansible.builtin.include_tasks: roles/wireguard/tasks/dry_run_config.yml
+      when: wireguard_dry_run | default(false) | bool
+
+    # Normal mode: Apply configuration
     - name: Create WireGuard configuration
       ansible.builtin.template:
         src: "roles/wireguard/templates/{{ wireguard_interface }}.conf.j2"
@@ -77,12 +137,14 @@
         mode: "0600"
         backup: true
       notify: Restart WireGuard
+      when: not (wireguard_dry_run | default(false) | bool)
 
     - name: Enable and start WireGuard service
       ansible.builtin.systemd:
         name: "wg-quick@{{ wireguard_interface }}"
         enabled: true
         state: started
+      when: not (wireguard_dry_run | default(false) | bool)
 
     - name: Install and configure UFW on all nodes
       ansible.builtin.package:
@@ -205,6 +267,14 @@
             state: enabled
             policy: deny
             direction: incoming
+
+    # Validate WireGuard peer configuration
+    - name: Validate WireGuard peer configuration on control plane
+      ansible.builtin.include_tasks: roles/wireguard/tasks/validate_peers.yml
+      when:
+        - inventory_hostname in groups['control_plane']
+        - not (wireguard_dry_run | default(false) | bool)
+
   handlers:
     - name: Restart WireGuard
       ansible.builtin.systemd:
