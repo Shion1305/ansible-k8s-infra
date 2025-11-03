@@ -60,13 +60,14 @@
       when: wg_config_stat.stat.exists
       no_log: true
 
-    - name: Extract existing keys from config
+    - name: Extract existing keys from config (control plane only)
       ansible.builtin.set_fact:
         wireguard_private_key: "{{ wg_config_parsed.interface.privatekey | default('') }}"
         wireguard_public_key: "{{ wg_config_parsed.interface.public_key | default('') }}"
       when:
         - wg_config_stat.stat.exists
         - not (wireguard_regenerate_keys | default(false) | bool)
+        - inventory_hostname in groups['control_plane']
         - wg_config_parsed.interface.privatekey is defined
         - wg_config_parsed.interface.public_key is defined
       no_log: true
@@ -79,6 +80,7 @@
       when: >
         not wg_config_stat.stat.exists or
         (wireguard_regenerate_keys | default(false) | bool) or
+        inventory_hostname in groups['workers'] or
         wireguard_private_key is not defined or
         wireguard_private_key == ''
 
@@ -104,7 +106,7 @@
         msg: >-
           {{
             'Using existing WireGuard keys from config'
-            if wg_config_stat.stat.exists and not (wireguard_regenerate_keys | default(false) | bool)
+            if (wg_config_stat.stat.exists and not (wireguard_regenerate_keys | default(false) | bool) and inventory_hostname in groups['control_plane'])
             else 'Generated new WireGuard keys'
           }}
 
