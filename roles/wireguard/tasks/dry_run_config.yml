@@ -1,0 +1,100 @@
+---
+# Dry-run mode: Generate WireGuard config without applying changes
+# This allows preview of configuration changes before actual deployment
+
+- name: Generate WireGuard configuration to temporary location (dry-run)
+  ansible.builtin.template:
+    src: "roles/wireguard/templates/{{ wireguard_interface }}.conf.j2"
+    dest: "/tmp/{{ wireguard_interface }}.conf.preview"
+    mode: "0600"
+  register: wireguard_dry_run_result
+
+- name: Check if actual WireGuard config exists for comparison
+  ansible.builtin.stat:
+    path: "/etc/wireguard/{{ wireguard_interface }}.conf"
+  register: wireguard_actual_config_stat
+
+- name: Read actual WireGuard configuration for diff
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/{{ wireguard_interface }}.conf"
+  register: wireguard_actual_config
+  when: wireguard_actual_config_stat.stat.exists
+
+- name: Read generated preview configuration
+  ansible.builtin.slurp:
+    src: "/tmp/{{ wireguard_interface }}.conf.preview"
+  register: wireguard_preview_config
+
+- name: Display configuration comparison
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "DRY-RUN MODE: WireGuard Configuration Preview"
+      - "=========================================="
+      - "{{ 'Comparing with existing configuration' if wireguard_actual_config_stat.stat.exists else 'No existing configuration found (new deployment)' }}"
+      - ""
+
+- name: Show diff between current and preview configurations
+  ansible.builtin.shell:
+    cmd: |
+      diff -u --label "Current Config" --label "Preview Config" \
+        /etc/wireguard/{{ wireguard_interface }}.conf \
+        /tmp/{{ wireguard_interface }}.conf.preview || true
+  register: wireguard_config_diff
+  when: wireguard_actual_config_stat.stat.exists
+  failed_when: false
+  changed_when: false
+
+- name: Display configuration diff
+  ansible.builtin.debug:
+    msg: "{{ wireguard_config_diff.stdout_lines }}"
+  when:
+    - wireguard_actual_config_stat.stat.exists
+    - wireguard_config_diff.stdout_lines is defined
+
+- name: Show preview configuration (new deployment)
+  ansible.builtin.debug:
+    msg:
+      - "Preview configuration content:"
+      - "{{ wireguard_preview_config.content | b64decode | split('\n') }}"
+  when: not wireguard_actual_config_stat.stat.exists
+
+- name: Count peer differences
+  ansible.builtin.set_fact:
+    wireguard_preview_peer_count: >-
+      {{ (wireguard_preview_config.content | b64decode | regex_findall('\\[Peer\\]')) | length }}
+    wireguard_actual_peer_count: >-
+      {{
+        (wireguard_actual_config.content | b64decode | regex_findall('\\[Peer\\]')) | length
+        if wireguard_actual_config_stat.stat.exists else 0
+      }}
+
+- name: Display dry-run summary
+  ansible.builtin.debug:
+    msg:
+      - ""
+      - "=========================================="
+      - "DRY-RUN SUMMARY"
+      - "=========================================="
+      - "Node: {{ inventory_hostname }}"
+      - "Preview file: /tmp/{{ wireguard_interface }}.conf.preview"
+      - "Target file: /etc/wireguard/{{ wireguard_interface }}.conf"
+      - "{{ 'Status: NEW CONFIGURATION (file does not exist)' if not wireguard_actual_config_stat.stat.exists else 'Status: UPDATE EXISTING' }}"
+      - "Current peers: {{ wireguard_actual_peer_count }}"
+      - "Preview peers: {{ wireguard_preview_peer_count }}"
+      - "Change: {{ wireguard_preview_peer_count | int - wireguard_actual_peer_count | int }} peer(s)"
+      - ""
+      - "To apply this configuration, run without -e wireguard_dry_run=true"
+      - "=========================================="
+
+- name: Remind user to review preview file
+  ansible.builtin.debug:
+    msg:
+      - "You can review the preview file on the target host:"
+      - "  ssh {{ ansible_host }} 'sudo cat /tmp/{{ wireguard_interface }}.conf.preview'"
+      - ""
+      - "Or compare with diff:"
+      - >-
+        ssh {{ ansible_host }}
+        'sudo diff -u /etc/wireguard/{{ wireguard_interface }}.conf
+        /tmp/{{ wireguard_interface }}.conf.preview'
