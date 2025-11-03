@@ -10,17 +10,20 @@ help:
   @echo "Kubernetes WireGuard Cluster - Ansible Automation"
   @echo ""
   @echo "Usage:"
-  @echo "  just deploy [host]  - Deploy cluster to all hosts or only the specified host"
-  @echo "  just reset      - Reset the entire cluster (WARNING: destructive)"
-  @echo "  just clean      - Clean up CNI bridges and restart services"
-  @echo "  just lint       - Validate all playbooks with ansible-lint"
+  @echo "  just deploy [host]    - Deploy cluster to all hosts or only the specified host"
+  @echo "  just dry-run [host]   - Preview WireGuard configuration changes (no actual changes)"
+  @echo "  just reset            - Reset the entire cluster (WARNING: destructive)"
+  @echo "  just clean            - Clean up CNI bridges and restart services"
+  @echo "  just lint             - Validate all playbooks with ansible-lint"
   @echo ""
   @echo "Examples:"
   @echo "  just deploy           # Full cluster deployment with verification (all hosts)"
   @echo "  just deploy worker-1  # Deploy & verify only on host 'worker-1'"
-  @echo "  just reset      # Destroy everything and reset to clean state"
-  @echo "  just clean      # Clean CNI interfaces"
-  @echo "  just lint       # Check playbook syntax"
+  @echo "  just dry-run          # Preview WireGuard config changes for all hosts"
+  @echo "  just dry-run cm4      # Preview WireGuard config changes for cm4 only"
+  @echo "  just reset            # Destroy everything and reset to clean state"
+  @echo "  just clean            # Clean CNI interfaces"
+  @echo "  just lint             # Check playbook syntax"
 
 # Deploy the complete cluster (runs deployment + verification)
 deploy host='':
@@ -37,6 +40,28 @@ deploy host='':
     echo "✅ Deployment phase complete, running verification..."; \
     uv run ansible-playbook -i inventory.yml "${LIMIT[@]}" verify.yml; \
     echo "✅ Cluster fully deployed and verified"; \
+  '
+
+# Preview WireGuard configuration changes (dry-run mode)
+dry-run host='':
+  @bash -uc '\
+    set -euo pipefail; \
+    if [ -n "{{host}}" ]; then \
+      echo "🔍 Previewing WireGuard configuration changes... (limit: {{host}})"; \
+      if [ "{{host}}" != "k8s" ] && [ "{{host}}" != "control_plane" ]; then \
+        echo "ℹ️  Including control plane (required for worker node configs)"; \
+        LIMIT=( -l "k8s,{{host}}" ); \
+      else \
+        LIMIT=( -l "{{host}}" ); \
+      fi; \
+    else \
+      echo "🔍 Previewing WireGuard configuration changes... (all hosts)"; \
+      LIMIT=(); \
+    fi; \
+    uv run ansible-playbook -i inventory.yml "${LIMIT[@]}" site.yml --tags=wireguard -e "wireguard_dry_run=true"; \
+    echo ""; \
+    echo "✅ Dry-run complete - no changes were applied"; \
+    echo "💡 To apply changes, run: just deploy {{host}}"; \
   '
 
 # Reset the entire cluster (destructive!)
