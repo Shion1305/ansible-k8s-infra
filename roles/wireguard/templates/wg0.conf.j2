@@ -7,6 +7,16 @@ PrivateKey = {{ wireguard_private_key }}
 
 {% if inventory_hostname in groups['control_plane'] %}
 # Worker nodes
+{% if wireguard_merged_peers is defined and wireguard_merged_peers | length > 0 %}
+{% for item in (wireguard_merged_peers | dict2items | sort(attribute='key')) %}
+[Peer]
+# {{ item.key }}
+PublicKey = {{ item.value.public_key }}
+AllowedIPs = {{ item.value.allowed_ips }}
+
+{% endfor %}
+{% else %}
+# Fallback to traditional method if wireguard_merged_peers not available
 {% for host in groups['workers'] %}
 [Peer]
 # {{ host }}
@@ -14,6 +24,7 @@ PublicKey = {{ hostvars[host]['wireguard_public_key'] }}
 AllowedIPs = {{ hostvars[host]['wireguard_ip'] }}/32
 
 {% endfor %}
+{% endif %}
 {% else %}
 # Control plane
 [Peer]
