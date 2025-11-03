@@ -1,0 +1,29 @@
+---
+# Fetch and parse existing WireGuard configuration to preserve peer state
+# This task runs only on control plane nodes
+
+- name: Check if WireGuard config exists
+  ansible.builtin.stat:
+    path: "/etc/wireguard/{{ wireguard_interface }}.conf"
+  register: wireguard_config_stat
+
+- name: Fetch existing WireGuard configuration
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/{{ wireguard_interface }}.conf"
+  register: wireguard_config_content
+  when: wireguard_config_stat.stat.exists
+
+- name: Parse existing peer configurations from WireGuard config
+  ansible.builtin.set_fact:
+    wireguard_existing_peers: "{{ wireguard_config_content.content | b64decode | parse_wireguard_peers }}"
+  when: wireguard_config_stat.stat.exists
+
+- name: Initialize empty peer list if no config exists
+  ansible.builtin.set_fact:
+    wireguard_existing_peers: {}
+  when: not wireguard_config_stat.stat.exists
+
+- name: Display existing peers found in configuration
+  ansible.builtin.debug:
+    msg: "Found {{ wireguard_existing_peers.keys() | list | length }} existing peer(s): {{ wireguard_existing_peers.keys() | list | join(', ') }}"
+  when: wireguard_existing_peers | length > 0

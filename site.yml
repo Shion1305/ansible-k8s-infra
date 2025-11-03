@@ -70,6 +70,21 @@
   tags: wireguard
 
   tasks:
+    # Incremental peer configuration for control plane
+    - name: Fetch existing WireGuard peer state on control plane
+      ansible.builtin.include_tasks: roles/wireguard/tasks/fetch_existing_peers.yml
+      when: inventory_hostname in groups['control_plane']
+
+    - name: Merge peer configurations on control plane
+      ansible.builtin.include_tasks: roles/wireguard/tasks/merge_peer_config.yml
+      when: inventory_hostname in groups['control_plane']
+
+    # Dry-run mode: Generate config to temp location and show diff
+    - name: Generate WireGuard configuration preview (dry-run mode)
+      ansible.builtin.include_tasks: roles/wireguard/tasks/dry_run_config.yml
+      when: wireguard_dry_run | default(false) | bool
+
+    # Normal mode: Apply configuration
     - name: Create WireGuard configuration
       ansible.builtin.template:
         src: "roles/wireguard/templates/{{ wireguard_interface }}.conf.j2"
@@ -77,12 +92,14 @@
         mode: "0600"
         backup: true
       notify: Restart WireGuard
+      when: not (wireguard_dry_run | default(false) | bool)
 
     - name: Enable and start WireGuard service
       ansible.builtin.systemd:
         name: "wg-quick@{{ wireguard_interface }}"
         enabled: true
         state: started
+      when: not (wireguard_dry_run | default(false) | bool)
 
     - name: Install and configure UFW on all nodes
       ansible.builtin.package:
@@ -205,6 +222,14 @@
             state: enabled
             policy: deny
             direction: incoming
+
+    # Validate WireGuard peer configuration
+    - name: Validate WireGuard peer configuration on control plane
+      ansible.builtin.include_tasks: roles/wireguard/tasks/validate_peers.yml
+      when:
+        - inventory_hostname in groups['control_plane']
+        - not (wireguard_dry_run | default(false) | bool)
+
   handlers:
     - name: Restart WireGuard
       ansible.builtin.systemd:
