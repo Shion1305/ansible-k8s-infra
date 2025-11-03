@@ -58,8 +58,9 @@
   notify: restart kubelet
   when: worker_kubelet_flags_exists.stat.exists
 
-- name: Ensure kubelet is running
+- name: Ensure kubelet is running (only if node already joined)
   ansible.builtin.systemd:
     name: kubelet
     state: started
     enabled: true
+  when: worker_kubelet_conf_exists.stat.exists
