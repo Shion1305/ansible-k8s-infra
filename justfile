@@ -33,7 +33,12 @@ deploy host='':
     set -euo pipefail; \
     if [ -n "{{host}}" ]; then \
       echo "Deploying Kubernetes cluster with WireGuard... (limit: {{host}})"; \
-      LIMIT=( -l "{{host}}" ); \
+      if [ "{{host}}" != "k8s" ] && [ "{{host}}" != "control_plane" ]; then \
+        echo "ℹ️  Including control plane (required for worker node configs)"; \
+        LIMIT=( -l "k8s,{{host}}" ); \
+      else \
+        LIMIT=( -l "{{host}}" ); \
+      fi; \
     else \
       echo "Deploying Kubernetes cluster with WireGuard... (all hosts)"; \
       LIMIT=(); \
