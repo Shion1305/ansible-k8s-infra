@@ -19,6 +19,52 @@
   changed_when: false
   failed_when: false
 
+- name: Configure Flannel to use WireGuard interface
+  ansible.builtin.shell: |
+    set -o pipefail
+    # Check if --iface=wg0 is already in the args
+    CURRENT_ARGS=$(kubectl get ds -n kube-flannel kube-flannel-ds \
+      -o jsonpath='{.spec.template.spec.containers[0].args[*]}')
+    if ! echo "$CURRENT_ARGS" | grep -q -- '--iface=wg0'; then
+      kubectl patch daemonset kube-flannel-ds -n kube-flannel --type='json' \
+        -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--iface=wg0"}]'
+      echo "Patched Flannel DaemonSet to use wg0 interface"
+    else
+      echo "Flannel DaemonSet already configured to use wg0 interface"
+    fi
+  become_user: "{{ ansible_user }}"
+  become: false
+  register: cni_flannel_iface_patch
+  changed_when: "'Patched' in cni_flannel_iface_patch.stdout"
+
+- name: Remove stale Flannel node annotations to force re-detection
+  ansible.builtin.shell: |
+    set -o pipefail
+    for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
+      # Check if node has old physical IP annotation
+      public_ip=$(kubectl get node "$node" -o jsonpath='{.metadata.annotations.flannel\.alpha\.coreos\.com/public-ip}' 2>/dev/null || echo "")
+      if [ -n "$public_ip" ] && ! echo "$public_ip" | grep -q '^10\.0\.0\.'; then
+        echo "Removing stale annotation from $node (old IP: $public_ip)"
+        kubectl annotate node "$node" flannel.alpha.coreos.com/public-ip- 2>/dev/null || true
+        kubectl annotate node "$node" flannel.alpha.coreos.com/backend-data- 2>/dev/null || true
+      fi
+    done
+  become_user: "{{ ansible_user }}"
+  become: false
+  when: cni_flannel_iface_patch is defined and cni_flannel_iface_patch.changed
+  register: cni_flannel_annotation_cleanup
+  changed_when: "'Removing stale annotation' in cni_flannel_annotation_cleanup.stdout"
+  failed_when: false
+
+- name: Wait for Flannel DaemonSet rollout after configuration
+  ansible.builtin.command: kubectl rollout status daemonset/kube-flannel-ds -n kube-flannel --timeout=120s
+  become_user: "{{ ansible_user }}"
+  become: false
+  when: cni_flannel_iface_patch is defined and cni_flannel_iface_patch.changed
+  register: cni_flannel_rollout
+  changed_when: false
+  failed_when: false
+
 - name: Wait for some Flannel pods to start appearing
   ansible.builtin.shell: |
     set -o pipefail
