@@ -15,6 +15,7 @@ help:
   @echo "  just reset            - Reset the entire cluster (WARNING: destructive)"
   @echo "  just clean            - Clean up CNI bridges and restart services"
   @echo "  just lint             - Validate all playbooks with ansible-lint"
+  @echo "  just test             - Run Python tests for filter plugins"
   @echo ""
   @echo "Examples:"
   @echo "  just deploy           # Full cluster deployment with verification (all hosts)"
@@ -24,6 +25,7 @@ help:
   @echo "  just reset            # Destroy everything and reset to clean state"
   @echo "  just clean            # Clean CNI interfaces"
   @echo "  just lint             # Check playbook syntax"
+  @echo "  just test             # Run filter plugin tests"
 
 # Deploy the complete cluster (runs deployment + verification)
 deploy host='':
@@ -88,3 +90,9 @@ lint:
   @echo "Running ansible-lint on playbooks..."
   uv run ansible-lint
   @echo "✅ Lint check complete"
+
+# Run Python tests for filter plugins
+test:
+  @echo "Running filter plugin tests..."
+  uv run pytest tests/ -v
+  @echo "✅ Tests passed"
