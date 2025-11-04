@@ -41,19 +41,3 @@
   register: worker_join_result
   changed_when: "'This node has joined the cluster' in worker_join_result.stdout"
   when: not worker_kubelet_conf_exists.stat.exists and control_plane_kubernetes_join_command is defined
-
-- name: Update kubelet configuration with node IP
-  ansible.builtin.lineinfile:
-    path: /var/lib/kubelet/kubeadm-flags.env
-    regexp: "^KUBELET_KUBEADM_ARGS=.*"
-    line: >
-      KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///var/run/containerd/containerd.sock
-      --pod-infra-container-image=registry.k8s.io/pause:3.10 --node-ip={{ wireguard_ip }}"
-    backup: true
-  notify: restart kubelet
-
-- name: Ensure kubelet is running
-  ansible.builtin.systemd:
-    name: kubelet
-    state: started
-    enabled: true

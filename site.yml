@@ -60,13 +60,14 @@
       when: wg_config_stat.stat.exists
       no_log: true
 
-    - name: Extract existing keys from config
+    - name: Extract existing keys from config (control plane only)
       ansible.builtin.set_fact:
         wireguard_private_key: "{{ wg_config_parsed.interface.privatekey | default('') }}"
         wireguard_public_key: "{{ wg_config_parsed.interface.public_key | default('') }}"
       when:
         - wg_config_stat.stat.exists
         - not (wireguard_regenerate_keys | default(false) | bool)
+        - inventory_hostname in groups['control_plane']
         - wg_config_parsed.interface.privatekey is defined
         - wg_config_parsed.interface.public_key is defined
       no_log: true
@@ -79,6 +80,7 @@
       when: >
         not wg_config_stat.stat.exists or
         (wireguard_regenerate_keys | default(false) | bool) or
+        inventory_hostname in groups['workers'] or
         wireguard_private_key is not defined or
         wireguard_private_key == ''
 
@@ -104,7 +106,7 @@
         msg: >-
           {{
             'Using existing WireGuard keys from config'
-            if wg_config_stat.stat.exists and not (wireguard_regenerate_keys | default(false) | bool)
+            if (wg_config_stat.stat.exists and not (wireguard_regenerate_keys | default(false) | bool) and inventory_hostname in groups['control_plane'])
             else 'Generated new WireGuard keys'
           }}
 
@@ -268,6 +270,10 @@
             policy: deny
             direction: incoming
 
+    # Flush handlers to ensure WireGuard service is restarted with new config
+    - name: Flush handlers to apply WireGuard configuration
+      ansible.builtin.meta: flush_handlers
+
     # Validate WireGuard peer configuration
     - name: Validate WireGuard peer configuration on control plane
       ansible.builtin.include_tasks: roles/wireguard/tasks/validate_peers.yml
@@ -315,12 +321,6 @@
       changed_when: "'Removing bridge:' in bridge_cleanup_site.stdout"
       failed_when: false
 
-    - name: Stop kubelet before CNI deployment
-      ansible.builtin.systemd:
-        name: kubelet
-        state: stopped
-      failed_when: false
-
 - name: Deploy CNI
   hosts: control_plane
   become: true
@@ -328,28 +328,6 @@
 
   roles:
     - cni
-
-- name: Restart workers after CNI deployment
-  hosts: workers
-  become: true
-  gather_facts: false
-
-  tasks:
-    - name: Restart kubelet on worker nodes after CNI deployment
-      ansible.builtin.systemd:
-        name: kubelet
-        state: restarted
-        enabled: true
-
-    - name: Verify kubelet is running
-      ansible.builtin.command: systemctl status kubelet
-      register: kubelet_status
-      changed_when: false
-
-    - name: Show kubelet status
-      ansible.builtin.debug:
-        msg: "{{ kubelet_status.stdout_lines | default('Kubelet status unavailable') }}"
-      when: kubelet_status is defined
 
 - name: Verify CNI Deployment
   hosts: control_plane

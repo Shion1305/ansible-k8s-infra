@@ -11,6 +11,7 @@ help:
   @echo ""
   @echo "Usage:"
   @echo "  just deploy [host]    - Deploy cluster to all hosts or only the specified host"
+  @echo "  just deploy-regen     - Deploy with WireGuard key regeneration (all hosts)"
   @echo "  just dry-run [host]   - Preview WireGuard configuration changes (no actual changes)"
   @echo "  just reset            - Reset the entire cluster (WARNING: destructive)"
   @echo "  just clean            - Clean up CNI bridges and restart services"
@@ -20,6 +21,7 @@ help:
   @echo "Examples:"
   @echo "  just deploy           # Full cluster deployment with verification (all hosts)"
   @echo "  just deploy worker-1  # Deploy & verify only on host 'worker-1'"
+  @echo "  just deploy-regen     # Deploy all hosts with regenerated WireGuard keys"
   @echo "  just dry-run          # Preview WireGuard config changes for all hosts"
   @echo "  just dry-run cm4      # Preview WireGuard config changes for cm4 only"
   @echo "  just reset            # Destroy everything and reset to clean state"
@@ -33,7 +35,12 @@ deploy host='':
     set -euo pipefail; \
     if [ -n "{{host}}" ]; then \
       echo "Deploying Kubernetes cluster with WireGuard... (limit: {{host}})"; \
-      LIMIT=( -l "{{host}}" ); \
+      if [ "{{host}}" != "k8s" ] && [ "{{host}}" != "control_plane" ]; then \
+        echo "ℹ️  Including control plane (required for worker node configs)"; \
+        LIMIT=( -l "k8s,{{host}}" ); \
+      else \
+        LIMIT=( -l "{{host}}" ); \
+      fi; \
     else \
       echo "Deploying Kubernetes cluster with WireGuard... (all hosts)"; \
       LIMIT=(); \
@@ -43,6 +50,15 @@ deploy host='':
     uv run ansible-playbook -i inventory.yml "${LIMIT[@]}" verify.yml; \
     echo "✅ Cluster fully deployed and verified"; \
   '
+
+# Deploy with WireGuard key regeneration (all hosts)
+deploy-regen:
+  @echo "⚠️  WARNING: This will regenerate all WireGuard keys on all hosts!"
+  @echo "Deploying Kubernetes cluster with WireGuard key regeneration..."
+  uv run ansible-playbook -i inventory.yml site.yml -e "wireguard_regenerate_keys=true"
+  @echo "✅ Deployment phase complete, running verification..."
+  uv run ansible-playbook -i inventory.yml verify.yml
+  @echo "✅ Cluster fully deployed and verified with new WireGuard keys"
 
 # Preview WireGuard configuration changes (dry-run mode)
 dry-run host='':
