@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Control Plane (k8s):** Oracle Cloud instance in Tokyo (ARM64)
 - **Worker Nodes:** Raspberry Pi CM4 (ARM64) and Ubuntu x86_64 VM
 
-**Core Technologies:** Ansible 2.19.0, Kubernetes 1.33.1, containerd 1.7.27, WireGuard, Flannel CNI
+**Core Technologies:** Ansible 2.19.0, Kubernetes 1.34.3, containerd 1.7.27, WireGuard, Flannel CNI
 
 ## Development Setup
 
@@ -274,6 +274,8 @@ See **README.md** for:
 ## Notes for Future Development
 
 - Always validate changes with `just lint` before committing
+- **Commit messages must use gitmoji format with non-alias emojis** (e.g., 🐛 for bug fix, ✨ for new feature, ♻️ for refactor, 🔒 for security)
+- Do NOT add Co-Authored-By or other co-author tags to commit messages
 - The main workflow is `just deploy` - it automatically runs site.yml then verify.yml
 - To test partial deployments, use direct ansible-playbook commands with `--tags` or `--limit`
 - WireGuard configuration changes require service restart (automatic via handlers)
