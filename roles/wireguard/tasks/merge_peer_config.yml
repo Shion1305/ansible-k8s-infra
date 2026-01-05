@@ -56,6 +56,11 @@
   ansible.builtin.set_fact:
     wireguard_merged_peers: "{{ wireguard_existing_peers | merge_wireguard_peers(wireguard_current_play_peers) }}"
 
+- name: Add static peers (non-Kubernetes nodes) to merged configuration
+  ansible.builtin.set_fact:
+    wireguard_merged_peers: "{{ wireguard_merged_peers | merge_wireguard_peers(wireguard_static_peers) }}"
+  when: wireguard_static_peers is defined
+
 - name: Display merged peer configuration
   ansible.builtin.debug:
     msg:

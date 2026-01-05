@@ -51,12 +51,26 @@ all:
 
   vars:
     # Kubernetes configuration
-    kubernetes_version: "1.33.1-1.1"
+    kubernetes_version: "1.34.3-1.1"
     pod_network_cidr: "10.244.0.0/16"
     service_cidr: "10.96.0.0/12"
 
     # WireGuard network
     wireguard_network: "10.0.0.0/24"
+
+    # Static WireGuard peers (non-Kubernetes nodes)
+    wireguard_static_peers:
+      mac-m4-max:
+        public_key: "nP4kEiL1SQHb3emQlqit43UzroOYa+PZGtsBxJQbaFM="
+        allowed_ips: "10.0.0.129/32"
+
+      yhost1:
+        public_key: "MkLMc9uNqgOyRIoL+H4GnRjSaZdqb2n8Pu4OAv7oB24="
+        allowed_ips: "10.0.0.193/32"
+
+      yhost2:
+        public_key: "tNeoX+ZsCphucM6C37KaclacOJTRCy90021+yPHlR0E="
+        allowed_ips: "10.0.0.194/32"
 
     # Control plane endpoint
     control_plane_endpoint: "k8s.shion1305.com:6443"
