@@ -64,6 +64,14 @@ all:
         public_key: "nP4kEiL1SQHb3emQlqit43UzroOYa+PZGtsBxJQbaFM="
         allowed_ips: "10.0.0.129/32"
 
+      yhost1:
+        public_key: "MkLMc9uNqgOyRIoL+H4GnRjSaZdqb2n8Pu4OAv7oB24="
+        allowed_ips: "10.0.0.193/32"
+
+      yhost2:
+        public_key: "tNeoX+ZsCphucM6C37KaclacOJTRCy90021+yPHlR0E="
+        allowed_ips: "10.0.0.194/32"
+
     # Control plane endpoint
     control_plane_endpoint: "k8s.shion1305.com:6443"
     apiserver_advertise_address: "10.0.0.20"
