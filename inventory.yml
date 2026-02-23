@@ -7,8 +7,8 @@ all:
           ansible_host: k8s.shion1305.com
           ansible_user: ubuntu
           ansible_ssh_private_key_file: ~/.ssh/credentials/shion1305-oci
-          local_ip: 10.0.0.20
-          wireguard_ip: 10.0.0.20
+          local_ip: 10.130.5.1
+          wireguard_ip: 10.130.5.1
           architecture: arm64
           wireguard_interface: wg0
           wireguard_port: 51820
@@ -21,7 +21,7 @@ all:
           ansible_user: shion
           ansible_ssh_private_key_file: ~/.ssh/credentials/rasp-cm4
           local_ip: 192.168.11.7
-          wireguard_ip: 10.0.0.3
+          wireguard_ip: 10.130.5.3
           architecture: arm64
           wireguard_interface: wg0
           cni_version: v1.3.0
@@ -32,7 +32,7 @@ all:
           ansible_user: shion
           ansible_ssh_private_key_file: ~/.ssh/credentials/shion1305
           local_ip: 192.168.11.2
-          wireguard_ip: 10.0.0.4
+          wireguard_ip: 10.130.5.4
           architecture: amd64
           wireguard_interface: wg0
           cni_version: v1.3.0
@@ -42,8 +42,8 @@ all:
           ansible_host: prox
           ansible_user: ubuntu
           ansible_ssh_private_key_file: ~/.ssh/credentials/shion1305-oci
-          local_ip: 10.0.0.21
-          wireguard_ip: 10.0.0.21
+          local_ip: 10.130.5.21
+          wireguard_ip: 10.130.5.21
           architecture: arm64
           wireguard_interface: wg0
           cni_version: v1.3.0
@@ -56,25 +56,25 @@ all:
     service_cidr: "10.96.0.0/12"
 
     # WireGuard network
-    wireguard_network: "10.0.0.0/24"
+    wireguard_network: "10.130.5.0/24"
 
     # Static WireGuard peers (non-Kubernetes nodes)
     wireguard_static_peers:
       mac-m4-max:
         public_key: "nP4kEiL1SQHb3emQlqit43UzroOYa+PZGtsBxJQbaFM="
-        allowed_ips: "10.0.0.129/32"
+        allowed_ips: "10.130.5.129/32"
 
       yhost1:
         public_key: "MkLMc9uNqgOyRIoL+H4GnRjSaZdqb2n8Pu4OAv7oB24="
-        allowed_ips: "10.0.0.193/32"
+        allowed_ips: "10.130.5.193/32"
 
       yhost2:
         public_key: "tNeoX+ZsCphucM6C37KaclacOJTRCy90021+yPHlR0E="
-        allowed_ips: "10.0.0.194/32"
+        allowed_ips: "10.130.5.194/32"
 
     # Control plane endpoint
     control_plane_endpoint: "k8s.shion1305.com:6443"
-    apiserver_advertise_address: "10.0.0.20"
+    apiserver_advertise_address: "10.130.5.1"
 
     # Container runtime
     containerd_version: "1.7.27-*"

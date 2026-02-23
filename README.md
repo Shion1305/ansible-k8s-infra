@@ -239,7 +239,7 @@ kubernetes_version: "1.34.3-1.1"  # Update version
 # In inventory.yml
 pod_network_cidr: "10.244.0.0/16"    # Pod network
 service_cidr: "10.96.0.0/12"         # Service network
-wireguard_network: "10.0.0.0/24"     # WireGuard network
+wireguard_network: "10.130.5.0/24"     # WireGuard network
 ```
 
 ### Add Additional Nodes

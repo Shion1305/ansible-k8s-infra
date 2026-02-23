@@ -6,6 +6,8 @@
   ansible.builtin.shell: |
     set -o pipefail
     kubectl get pods -n kube-flannel -o jsonpath='{.items[*].status.phase}' | grep -v Running | wc -l
+  args:
+    executable: /bin/bash
   become_user: "{{ ansible_user }}"
   become: false
   register: cni_flannel_pod_status
@@ -26,6 +28,8 @@
       echo "Flannel DaemonSet not ready: $READY/$DESIRED"
       exit 1
     fi
+  args:
+    executable: /bin/bash
   become_user: "{{ ansible_user }}"
   become: false
   register: cni_flannel_daemonset_status
@@ -48,6 +52,8 @@
       kubectl get nodes
       exit 1
     fi
+  args:
+    executable: /bin/bash
   become_user: "{{ ansible_user }}"
   become: false
   register: cni_nodes_ready_status
@@ -70,6 +76,8 @@
       kubectl get pods -n kube-system -l k8s-app=kube-dns
       exit 1
     fi
+  args:
+    executable: /bin/bash
   become_user: "{{ ansible_user }}"
   become: false
   register: cni_coredns_status

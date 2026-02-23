@@ -38,19 +38,19 @@ class TestWireguardTemplate:
                     'control_plane': ['test-control'],
                     'workers': ['test-worker-1'],
                 },
-                'wireguard_ip': '10.0.0.20',
+                'wireguard_ip': '10.130.5.1',
                 'wireguard_port': 51820,
                 'wireguard_private_key': 'aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=',
                 'wireguard_public_key': 'bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=',
                 'wireguard_merged_peers': {
                     'test-worker-1': {
                         'public_key': 'cDUMMYpeerKEY1111111111abcdefGHIJKLMNOPQRST=',
-                        'allowed_ips': '10.0.0.3/32',
+                        'allowed_ips': '10.130.5.3/32',
                     },
                 },
             },
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 ListenPort = 51820
 PrivateKey = aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=
 # PublicKey = bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=
@@ -59,7 +59,7 @@ PrivateKey = aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=
 [Peer]
 # test-worker-1
 PublicKey = cDUMMYpeerKEY1111111111abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.3/32
+AllowedIPs = 10.130.5.3/32
 
 
 """,
@@ -72,27 +72,27 @@ AllowedIPs = 10.0.0.3/32
                     'control_plane': ['test-control'],
                     'workers': ['worker-c', 'worker-a', 'worker-b'],
                 },
-                'wireguard_ip': '10.0.0.20',
+                'wireguard_ip': '10.130.5.1',
                 'wireguard_port': 51820,
                 'wireguard_private_key': 'aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=',
                 'wireguard_public_key': 'bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=',
                 'wireguard_merged_peers': {
                     'worker-c': {
                         'public_key': 'cDUMMYworkerCKEY3333333333abcdefGHIJKLMNOP=',
-                        'allowed_ips': '10.0.0.5/32',
+                        'allowed_ips': '10.130.5.5/32',
                     },
                     'worker-a': {
                         'public_key': 'cDUMMYworkerAKEY1111111111abcdefGHIJKLMNOP=',
-                        'allowed_ips': '10.0.0.3/32',
+                        'allowed_ips': '10.130.5.3/32',
                     },
                     'worker-b': {
                         'public_key': 'cDUMMYworkerBKEY2222222222abcdefGHIJKLMNOP=',
-                        'allowed_ips': '10.0.0.4/32',
+                        'allowed_ips': '10.130.5.4/32',
                     },
                 },
             },
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 ListenPort = 51820
 PrivateKey = aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=
 # PublicKey = bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=
@@ -101,17 +101,17 @@ PrivateKey = aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=
 [Peer]
 # worker-a
 PublicKey = cDUMMYworkerAKEY1111111111abcdefGHIJKLMNOP=
-AllowedIPs = 10.0.0.3/32
+AllowedIPs = 10.130.5.3/32
 
 [Peer]
 # worker-b
 PublicKey = cDUMMYworkerBKEY2222222222abcdefGHIJKLMNOP=
-AllowedIPs = 10.0.0.4/32
+AllowedIPs = 10.130.5.4/32
 
 [Peer]
 # worker-c
 PublicKey = cDUMMYworkerCKEY3333333333abcdefGHIJKLMNOP=
-AllowedIPs = 10.0.0.5/32
+AllowedIPs = 10.130.5.5/32
 
 
 """,
@@ -124,7 +124,7 @@ AllowedIPs = 10.0.0.5/32
                     'control_plane': ['test-control'],
                     'workers': ['test-worker-1', 'test-worker-2'],
                 },
-                'wireguard_ip': '10.0.0.20',
+                'wireguard_ip': '10.130.5.1',
                 'wireguard_port': 51820,
                 'wireguard_private_key': 'aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=',
                 'wireguard_public_key': 'bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=',
@@ -132,16 +132,16 @@ AllowedIPs = 10.0.0.5/32
                 'hostvars': {
                     'test-worker-1': {
                         'wireguard_public_key': 'eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=',
-                        'wireguard_ip': '10.0.0.3',
+                        'wireguard_ip': '10.130.5.3',
                     },
                     'test-worker-2': {
                         'wireguard_public_key': 'fDUMMYworker2KEY22222222abcdefGHIJKLMNOPQRST=',
-                        'wireguard_ip': '10.0.0.4',
+                        'wireguard_ip': '10.130.5.4',
                     },
                 },
             },
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 ListenPort = 51820
 PrivateKey = aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=
 # PublicKey = bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=
@@ -151,12 +151,12 @@ PrivateKey = aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=
 [Peer]
 # test-worker-1
 PublicKey = eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.3/32
+AllowedIPs = 10.130.5.3/32
 
 [Peer]
 # test-worker-2
 PublicKey = fDUMMYworker2KEY22222222abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.4/32
+AllowedIPs = 10.130.5.4/32
 
 
 """,
@@ -169,19 +169,19 @@ AllowedIPs = 10.0.0.4/32
                     'control_plane': ['test-control'],
                     'workers': ['test-worker-1'],
                 },
-                'wireguard_ip': '10.0.0.20',
+                'wireguard_ip': '10.130.5.1',
                 'wireguard_port': 51820,
                 'wireguard_private_key': 'aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=',
                 'wireguard_public_key': 'bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=',
                 'hostvars': {
                     'test-worker-1': {
                         'wireguard_public_key': 'eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=',
-                        'wireguard_ip': '10.0.0.3',
+                        'wireguard_ip': '10.130.5.3',
                     },
                 },
             },
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 ListenPort = 51820
 PrivateKey = aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=
 # PublicKey = bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=
@@ -191,7 +191,7 @@ PrivateKey = aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=
 [Peer]
 # test-worker-1
 PublicKey = eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.3/32
+AllowedIPs = 10.130.5.3/32
 
 
 """,
@@ -204,10 +204,10 @@ AllowedIPs = 10.0.0.3/32
                     'control_plane': ['test-control'],
                     'workers': ['test-worker-1', 'test-worker-2'],
                 },
-                'wireguard_ip': '10.0.0.3',
+                'wireguard_ip': '10.130.5.3',
                 'wireguard_private_key': 'wDUMMYworker1privateKEY123456abcdefGHIJKLM=',
                 'wireguard_public_key': 'wDUMMYworker1publicKEY123456abcdefGHIJKLMN=',
-                'wireguard_network': '10.0.0.0/24',
+                'wireguard_network': '10.130.5.0/24',
                 'hostvars': {
                     'test-control': {
                         'wireguard_public_key': 'hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=',
@@ -217,7 +217,7 @@ AllowedIPs = 10.0.0.3/32
                 },
             },
             """[Interface]
-Address = 10.0.0.3/24
+Address = 10.130.5.3/24
 PrivateKey = wDUMMYworker1privateKEY123456abcdefGHIJKLM=
 # PublicKey = wDUMMYworker1publicKEY123456abcdefGHIJKLMN=
 
@@ -225,7 +225,7 @@ PrivateKey = wDUMMYworker1privateKEY123456abcdefGHIJKLM=
 [Peer]
 PublicKey = hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=
 Endpoint = root.test-control-plane.example.com:51820
-AllowedIPs = 10.0.0.0/24
+AllowedIPs = 10.130.5.0/24
 PersistentKeepalive = 25
 
 """,
@@ -238,7 +238,7 @@ PersistentKeepalive = 25
                     'control_plane': ['test-control'],
                     'workers': [],
                 },
-                'wireguard_ip': '10.0.0.20',
+                'wireguard_ip': '10.130.5.1',
                 'wireguard_port': 51820,
                 'wireguard_private_key': 'aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=',
                 'wireguard_public_key': 'bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=',
@@ -246,7 +246,7 @@ PersistentKeepalive = 25
                 'hostvars': {},
             },
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 ListenPort = 51820
 PrivateKey = aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=
 # PublicKey = bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=

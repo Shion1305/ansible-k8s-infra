@@ -85,6 +85,8 @@
         done
         echo "Test pod not ready after 60 seconds"
         exit 1
+      args:
+        executable: /bin/bash
       register: test_pod_wait
       changed_when: "'Test pod is running' in test_pod_wait.stdout"
       failed_when: false
@@ -95,14 +97,14 @@
       register: test_pod_ip
       changed_when: false
       failed_when: false
-      when: test_pod_wait is defined and test_pod_wait.rc == 0
+      when: test_pod_wait is not skipped and test_pod_wait.rc == 0
 
     - name: Test pod network connectivity
       ansible.builtin.command: kubectl exec test-connectivity -- ping -c 2 8.8.8.8
       register: pod_network_test
       changed_when: false
       failed_when: false
-      when: test_pod_ip is defined and test_pod_ip.stdout != ""
+      when: test_pod_ip is not skipped and test_pod_ip.stdout is defined and test_pod_ip.stdout != ""
 
     - name: Clean up test pod
       ansible.builtin.command: kubectl delete pod test-connectivity

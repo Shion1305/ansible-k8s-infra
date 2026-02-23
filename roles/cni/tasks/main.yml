@@ -10,6 +10,8 @@
   ansible.builtin.shell: |
     set -o pipefail
     kubectl get daemonset -n kube-flannel kube-flannel-ds -o name 2>/dev/null || echo ""
+  args:
+    executable: /bin/bash
   become_user: "{{ ansible_user }}"
   become: false
   register: cni_flannel_daemonset_exists
@@ -32,6 +34,8 @@
     else
       echo "Flannel DaemonSet already configured to use wg0 interface"
     fi
+  args:
+    executable: /bin/bash
   become_user: "{{ ansible_user }}"
   become: false
   register: cni_flannel_iface_patch
@@ -43,12 +47,14 @@
     for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
       # Check if node has old physical IP annotation
       public_ip=$(kubectl get node "$node" -o jsonpath='{.metadata.annotations.flannel\.alpha\.coreos\.com/public-ip}' 2>/dev/null || echo "")
-      if [ -n "$public_ip" ] && ! echo "$public_ip" | grep -q '^10\.0\.0\.'; then
+      if [ -n "$public_ip" ] && ! echo "$public_ip" | grep -q '^10\.130\.5\.'; then
         echo "Removing stale annotation from $node (old IP: $public_ip)"
         kubectl annotate node "$node" flannel.alpha.coreos.com/public-ip- 2>/dev/null || true
         kubectl annotate node "$node" flannel.alpha.coreos.com/backend-data- 2>/dev/null || true
       fi
     done
+  args:
+    executable: /bin/bash
   become_user: "{{ ansible_user }}"
   become: false
   when: cni_flannel_iface_patch is defined and cni_flannel_iface_patch.changed
@@ -69,6 +75,8 @@
   ansible.builtin.shell: |
     set -o pipefail
     kubectl get pods -n kube-flannel | grep -c kube-flannel || echo "0"
+  args:
+    executable: /bin/bash
   become_user: "{{ ansible_user }}"
   become: false
   register: cni_flannel_pod_count
@@ -91,6 +99,8 @@
       kubectl get nodes
       exit 1
     fi
+  args:
+    executable: /bin/bash
   become_user: "{{ ansible_user }}"
   become: false
   register: cni_nodes_ready_status
@@ -113,6 +123,8 @@
       kubectl get pods -n kube-system -l k8s-app=kube-dns
       exit 1
     fi
+  args:
+    executable: /bin/bash
   become_user: "{{ ansible_user }}"
   become: false
   register: cni_coredns_status

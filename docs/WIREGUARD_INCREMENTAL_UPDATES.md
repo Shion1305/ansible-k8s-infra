@@ -219,12 +219,12 @@ Comparing with existing configuration
 +++ Preview Config
 @@ -10,6 +10,10 @@
  PublicKey = xyz123...
- AllowedIPs = 10.0.0.3/32
+ AllowedIPs = 10.130.5.3/32
 
 +[Peer]
 +# k8s-proxy
 +PublicKey = abc789...
-+AllowedIPs = 10.0.0.21/32
++AllowedIPs = 10.130.5.21/32
 +
 
 ==========================================
@@ -304,17 +304,17 @@ Expected output shows all workers as peers:
 [Peer]
 # cm4
 PublicKey = ...
-AllowedIPs = 10.0.0.3/32
+AllowedIPs = 10.130.5.3/32
 
 [Peer]
 # s2204
 PublicKey = ...
-AllowedIPs = 10.0.0.4/32
+AllowedIPs = 10.130.5.4/32
 
 [Peer]
 # k8s-proxy
 PublicKey = ...
-AllowedIPs = 10.0.0.21/32
+AllowedIPs = 10.130.5.21/32
 ```
 
 ## Troubleshooting
@@ -359,7 +359,7 @@ ansible control_plane -i inventory.yml -b -a "wg show wg0 peers"
 **Diagnosis:**
 ```bash
 # On affected worker
-ping 10.0.0.20  # Control plane WireGuard IP
+ping 10.130.5.1  # Control plane WireGuard IP
 
 # Check WireGuard status
 sudo wg show wg0
@@ -467,14 +467,14 @@ Compare running config vs. file config:
 {
     'cm4': {
         'public_key': 'base64_encoded_public_key_here',
-        'allowed_ips': '10.0.0.3/32',
+        'allowed_ips': '10.130.5.3/32',
         # Optional fields:
         'endpoint': 'host:port',
         'persistent_keepalive': '25'
     },
     's2204': {
         'public_key': 'another_base64_key',
-        'allowed_ips': '10.0.0.4/32'
+        'allowed_ips': '10.130.5.4/32'
     }
 }
 ```
