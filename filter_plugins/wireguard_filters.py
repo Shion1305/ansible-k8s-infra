@@ -19,13 +19,13 @@ def parse_wireguard_config(config_text):
             'interface': {
                 'private_key': 'base64_key',
                 'public_key': 'base64_key',  # from comment if present
-                'address': '10.0.0.20/24',
+                'address': '10.130.5.1/24',
                 'listen_port': '51820' (optional)
             },
             'peers': {
                 'peer_name': {
                     'public_key': 'base64_key',
-                    'allowed_ips': '10.0.0.3/32',
+                    'allowed_ips': '10.130.5.3/32',
                     'endpoint': 'host:port' (optional),
                     'persistent_keepalive': '25' (optional)
                 }
@@ -124,7 +124,7 @@ def parse_wireguard_peers(config_text):
         {
             'peer_name': {
                 'public_key': 'base64_key',
-                'allowed_ips': '10.0.0.3/32',
+                'allowed_ips': '10.130.5.3/32',
                 'endpoint': 'host:port' (optional),
                 'persistent_keepalive': '25' (optional)
             }

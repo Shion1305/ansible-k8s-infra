@@ -97,20 +97,20 @@ control_plane:  # k8s node
   hosts:
     k8s:
       ansible_host: k8s.shion1305.com
-      wireguard_ip: 10.0.0.20
+      wireguard_ip: 10.130.5.1
       # ... other vars
 
 workers:  # cm4, s2204, and secret hosts
   hosts:
     cm4:
       ansible_host: cm4
-      wireguard_ip: 10.0.0.3
+      wireguard_ip: 10.130.5.3
     s2204:
       ansible_host: s2204
-      wireguard_ip: 10.0.0.4
+      wireguard_ip: 10.130.5.4
     k8s-proxy:
       ansible_host: prox
-      wireguard_ip: 10.0.0.21
+      wireguard_ip: 10.130.5.21
 ```
 
 ### Secret Hosts

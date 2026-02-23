@@ -23,7 +23,7 @@ class TestParseWireguardConfig:
         (
             "interface with public key comment",
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 ListenPort = 51820
 PrivateKey = aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=
 # PublicKey = bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=
@@ -31,11 +31,11 @@ PrivateKey = aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=
 [Peer]
 # test-worker-1
 PublicKey = cDUMMYpeerKEY1111111111abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.3/32
+AllowedIPs = 10.130.5.3/32
 """,
             {
                 'interface': {
-                    'address': '10.0.0.20/24',
+                    'address': '10.130.5.1/24',
                     'listenport': '51820',
                     'privatekey': 'aDUMMYprivateKEY1234567890abcdefGHIJKLMNOP=',
                     'public_key': 'bDUMMYpublicKEY1234567890abcdefGHIJKLMNOPQ=',
@@ -43,7 +43,7 @@ AllowedIPs = 10.0.0.3/32
                 'peers': {
                     'test-worker-1': {
                         'public_key': 'cDUMMYpeerKEY1111111111abcdefGHIJKLMNOPQRST=',
-                        'allowed_ips': '10.0.0.3/32',
+                        'allowed_ips': '10.130.5.3/32',
                     }
                 }
             },
@@ -51,23 +51,23 @@ AllowedIPs = 10.0.0.3/32
         (
             "interface without public key comment",
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 PrivateKey = test_private_key_no_comment_dummy_data_123=
 
 [Peer]
 # test-worker-2
 PublicKey = dDUMMYpeerKEY2222222222abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.4/32
+AllowedIPs = 10.130.5.4/32
 """,
             {
                 'interface': {
-                    'address': '10.0.0.20/24',
+                    'address': '10.130.5.1/24',
                     'privatekey': 'test_private_key_no_comment_dummy_data_123=',
                 },
                 'peers': {
                     'test-worker-2': {
                         'public_key': 'dDUMMYpeerKEY2222222222abcdefGHIJKLMNOPQRST=',
-                        'allowed_ips': '10.0.0.4/32',
+                        'allowed_ips': '10.130.5.4/32',
                     }
                 }
             },
@@ -107,7 +107,7 @@ class TestParseWireguardPeers:
         (
             "interface only - no peers",
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 PrivateKey = test_private_key
 """,
             {},
@@ -115,42 +115,42 @@ PrivateKey = test_private_key
         (
             "single peer with comment name",
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 PrivateKey = server_key
 
 [Peer]
 # test-worker-1
 PublicKey = eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.3/32
+AllowedIPs = 10.130.5.3/32
 """,
             {
                 'test-worker-1': {
                     'public_key': 'eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=',
-                    'allowed_ips': '10.0.0.3/32',
+                    'allowed_ips': '10.130.5.3/32',
                 }
             },
         ),
         (
             "single peer without comment - uses key prefix",
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 PrivateKey = server_key
 
 [Peer]
 PublicKey = eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.3/32
+AllowedIPs = 10.130.5.3/32
 """,
             {
                 'eDUMMYworker': {
                     'public_key': 'eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=',
-                    'allowed_ips': '10.0.0.3/32',
+                    'allowed_ips': '10.130.5.3/32',
                 }
             },
         ),
         (
             "multiple peers with comments",
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 ListenPort = 51820
 PrivateKey = server_key
 
@@ -158,50 +158,50 @@ PrivateKey = server_key
 [Peer]
 # test-worker-1
 PublicKey = eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.3/32
+AllowedIPs = 10.130.5.3/32
 
 [Peer]
 # test-worker-2
 PublicKey = fDUMMYworker2KEY22222222abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.4/32
+AllowedIPs = 10.130.5.4/32
 
 [Peer]
 # test-worker-3
 PublicKey = gDUMMYworker3KEY33333333abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.21/32
+AllowedIPs = 10.130.5.21/32
 """,
             {
                 'test-worker-1': {
                     'public_key': 'eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=',
-                    'allowed_ips': '10.0.0.3/32',
+                    'allowed_ips': '10.130.5.3/32',
                 },
                 'test-worker-2': {
                     'public_key': 'fDUMMYworker2KEY22222222abcdefGHIJKLMNOPQRST=',
-                    'allowed_ips': '10.0.0.4/32',
+                    'allowed_ips': '10.130.5.4/32',
                 },
                 'test-worker-3': {
                     'public_key': 'gDUMMYworker3KEY33333333abcdefGHIJKLMNOPQRST=',
-                    'allowed_ips': '10.0.0.21/32',
+                    'allowed_ips': '10.130.5.21/32',
                 },
             },
         ),
         (
             "peer with endpoint and keepalive",
             """[Interface]
-Address = 10.0.0.3/24
+Address = 10.130.5.3/24
 PrivateKey = client_key
 
 [Peer]
 # control-plane
 PublicKey = hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=
 Endpoint = test-control-plane.example.com:51820
-AllowedIPs = 10.0.0.0/24
+AllowedIPs = 10.130.5.0/24
 PersistentKeepalive = 25
 """,
             {
                 'control-plane': {
                     'public_key': 'hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=',
-                    'allowed_ips': '10.0.0.0/24',
+                    'allowed_ips': '10.130.5.0/24',
                     'endpoint': 'test-control-plane.example.com:51820',
                     'persistent_keepalive': '25',
                 }
@@ -210,7 +210,7 @@ PersistentKeepalive = 25
         (
             "interface with public key comment",
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 ListenPort = 51820
 PrivateKey = iDUMMYprivateKEYtest7777777abcdefGHIJKLMNOP=
 # PublicKey = hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=
@@ -218,31 +218,31 @@ PrivateKey = iDUMMYprivateKEYtest7777777abcdefGHIJKLMNOP=
 [Peer]
 # test-worker-1
 PublicKey = eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=
-AllowedIPs = 10.0.0.3/32
+AllowedIPs = 10.130.5.3/32
 """,
             {
                 'test-worker-1': {
                     'public_key': 'eDUMMYworker1KEY11111111abcdefGHIJKLMNOPQRST=',
-                    'allowed_ips': '10.0.0.3/32',
+                    'allowed_ips': '10.130.5.3/32',
                 }
             },
         ),
         (
             "mixed case keys - normalized to lowercase",
             """[Interface]
-Address = 10.0.0.20/24
+Address = 10.130.5.1/24
 PrivateKey = test_key
 
 [Peer]
 # test-peer
 PublicKey = testpublickey123=
-AllowedIPs = 10.0.0.5/32
+AllowedIPs = 10.130.5.5/32
 PersistentKeepalive = 25
 """,
             {
                 'test-peer': {
                     'public_key': 'testpublickey123=',
-                    'allowed_ips': '10.0.0.5/32',
+                    'allowed_ips': '10.130.5.5/32',
                     'persistent_keepalive': '25',
                 }
             },
@@ -274,49 +274,49 @@ class TestMergeWireguardPeers:
             "empty existing, new peers added",
             {},
             {
-                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.0.0.3/32'},
+                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.130.5.3/32'},
             },
             {
-                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.0.0.3/32'},
+                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.130.5.3/32'},
             },
         ),
         (
             "existing peers, empty new",
             {
-                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.0.0.3/32'},
+                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.130.5.3/32'},
             },
             {},
             {
-                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.0.0.3/32'},
+                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.130.5.3/32'},
             },
         ),
         (
             "non-overlapping peers - all preserved",
             {
-                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.0.0.3/32'},
-                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.0.0.4/32'},
+                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.130.5.3/32'},
+                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.130.5.4/32'},
             },
             {
-                'test-worker-3': {'public_key': 'key3', 'allowed_ips': '10.0.0.21/32'},
+                'test-worker-3': {'public_key': 'key3', 'allowed_ips': '10.130.5.21/32'},
             },
             {
-                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.0.0.3/32'},
-                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.0.0.4/32'},
-                'test-worker-3': {'public_key': 'key3', 'allowed_ips': '10.0.0.21/32'},
+                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.130.5.3/32'},
+                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.130.5.4/32'},
+                'test-worker-3': {'public_key': 'key3', 'allowed_ips': '10.130.5.21/32'},
             },
         ),
         (
             "overlapping peers - new overrides existing",
             {
-                'test-worker-1': {'public_key': 'old_key', 'allowed_ips': '10.0.0.3/32'},
-                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.0.0.4/32'},
+                'test-worker-1': {'public_key': 'old_key', 'allowed_ips': '10.130.5.3/32'},
+                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.130.5.4/32'},
             },
             {
-                'test-worker-1': {'public_key': 'new_key', 'allowed_ips': '10.0.0.3/32'},
+                'test-worker-1': {'public_key': 'new_key', 'allowed_ips': '10.130.5.3/32'},
             },
             {
-                'test-worker-1': {'public_key': 'new_key', 'allowed_ips': '10.0.0.3/32'},
-                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.0.0.4/32'},
+                'test-worker-1': {'public_key': 'new_key', 'allowed_ips': '10.130.5.3/32'},
+                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.130.5.4/32'},
             },
         ),
         (
@@ -347,32 +347,32 @@ class TestFilterPeersByInventory:
         (
             "empty inventory - all peers preserved",
             {
-                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.0.0.3/32'},
-                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.0.0.4/32'},
+                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.130.5.3/32'},
+                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.130.5.4/32'},
             },
             [],
             {
-                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.0.0.3/32'},
-                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.0.0.4/32'},
+                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.130.5.3/32'},
+                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.130.5.4/32'},
             },
         ),
         (
             "filter to inventory subset",
             {
-                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.0.0.3/32'},
-                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.0.0.4/32'},
-                'test-worker-3': {'public_key': 'key3', 'allowed_ips': '10.0.0.21/32'},
+                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.130.5.3/32'},
+                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.130.5.4/32'},
+                'test-worker-3': {'public_key': 'key3', 'allowed_ips': '10.130.5.21/32'},
             },
             ['test-worker-1', 'test-worker-2'],
             {
-                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.0.0.3/32'},
-                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.0.0.4/32'},
+                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.130.5.3/32'},
+                'test-worker-2': {'public_key': 'key2', 'allowed_ips': '10.130.5.4/32'},
             },
         ),
         (
             "no matching peers",
             {
-                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.0.0.3/32'},
+                'test-worker-1': {'public_key': 'key1', 'allowed_ips': '10.130.5.3/32'},
             },
             ['other-host'],
             {},
