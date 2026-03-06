@@ -1,13 +1,38 @@
 ---
-- name: Add Kubernetes APT repository key
-  ansible.builtin.apt_key:
-    url: https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key
-    state: present
+- name: Create keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
 
-- name: Add Kubernetes APT repository
+- name: Download Kubernetes APT repository signing key
+  ansible.builtin.get_url:
+    url: https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring-armored.key
+    mode: "0644"
+    force: true
+  register: kubernetes_apt_key_download
+
+- name: Dearmor Kubernetes APT repository signing key
+  ansible.builtin.shell:
+    cmd: gpg --dearmor < /etc/apt/keyrings/kubernetes-apt-keyring-armored.key > /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  when: kubernetes_apt_key_download.changed
+  changed_when: true
+
+- name: Remove old Kubernetes APT sources (v1.33 and legacy formats)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list.d/pkgs_k8s_io_core_stable_v1_33_deb.list
+    - /etc/apt/sources.list.d/pkgs_k8s_io_core_stable_v1_34_deb.list
+
+- name: Add Kubernetes APT repository with signed-by
   ansible.builtin.apt_repository:
-    repo: "deb https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /"
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /"
+    filename: kubernetes
     state: present
+    update_cache: true
 
 - name: Install containerd
   ansible.builtin.package:
