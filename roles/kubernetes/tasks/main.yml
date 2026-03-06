@@ -16,13 +16,12 @@
     cmd: gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /etc/apt/keyrings/kubernetes-apt-keyring-armored.key
     creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
-- name: Remove old Kubernetes APT sources (v1.33 and legacy formats)
+- name: Ensure Kubernetes APT keyring permissions are deterministic
   ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - /etc/apt/sources.list.d/pkgs_k8s_io_core_stable_v1_33_deb.list
-    - /etc/apt/sources.list.d/pkgs_k8s_io_core_stable_v1_34_deb.list
+    path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    mode: "0644"
+    owner: root
+    group: root
 
 - name: Add Kubernetes APT repository with signed-by
   ansible.builtin.apt_repository:
