@@ -1,12 +1,12 @@
 ---
 - name: Add Kubernetes APT repository key
   ansible.builtin.apt_key:
-    url: https://pkgs.k8s.io/core:/stable:/v1.33/deb/Release.key
+    url: https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key
     state: present
 
 - name: Add Kubernetes APT repository
   ansible.builtin.apt_repository:
-    repo: "deb https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /"
+    repo: "deb https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /"
     state: present
 
 - name: Install containerd
