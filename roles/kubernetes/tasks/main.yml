@@ -10,14 +10,11 @@
     url: https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key
     dest: /etc/apt/keyrings/kubernetes-apt-keyring-armored.key
     mode: "0644"
-    force: true
-  register: kubernetes_apt_key_download
 
 - name: Dearmor Kubernetes APT repository signing key
-  ansible.builtin.shell:
-    cmd: gpg --dearmor < /etc/apt/keyrings/kubernetes-apt-keyring-armored.key > /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-  when: kubernetes_apt_key_download.changed
-  changed_when: true
+  ansible.builtin.command:
+    cmd: gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /etc/apt/keyrings/kubernetes-apt-keyring-armored.key
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
 - name: Remove old Kubernetes APT sources (v1.33 and legacy formats)
   ansible.builtin.file:
