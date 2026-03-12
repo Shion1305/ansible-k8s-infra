@@ -8,6 +8,14 @@
   gather_facts: true
 
   pre_tasks:
+    - name: Remove legacy Kubernetes APT sources to prevent Signed-By conflicts
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/pkgs_k8s_io_core_stable_v1_33_deb.list
+        - /etc/apt/sources.list.d/pkgs_k8s_io_core_stable_v1_34_deb.list
+
     - name: Update apt cache (Debian/Ubuntu)
       ansible.builtin.apt:
         update_cache: true
