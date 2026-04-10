@@ -15,10 +15,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install aqua
-        uses: aquaproj/aqua-installer@v3.0.1
+        uses: aquaproj/aqua-installer@v4.0.4
         with:
           aqua_version: v2.56.7
 
