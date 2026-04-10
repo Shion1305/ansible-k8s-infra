@@ -64,6 +64,10 @@ all:
         public_key: "nP4kEiL1SQHb3emQlqit43UzroOYa+PZGtsBxJQbaFM="
         allowed_ips: "10.130.5.129/32"
 
+      tomoya-mac:
+        public_key: "+6KaWGZ4ePBZPhQJhGrMK4qU837OzXvNe86nntx1kno="
+        allowed_ips: "10.130.5.130/32"
+
       yhost1:
         public_key: "MkLMc9uNqgOyRIoL+H4GnRjSaZdqb2n8Pu4OAv7oB24="
         allowed_ips: "10.130.5.193/32"
