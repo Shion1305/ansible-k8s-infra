@@ -124,7 +124,7 @@ To keep sensitive host information (like public IPs) private and out of version 
 **Example: k8s-proxy host**
 
 - Stored in inventory.yml with `ansible_host: prox` (hostname, not IP)
-- Uses internal WireGuard IP: 10.0.0.21
+- Uses internal WireGuard IP: 10.130.5.21
 - Public IP is kept private and not committed to git
 - Deploys like any other worker node: `just deploy =k8s-proxy`
 
@@ -133,7 +133,7 @@ To keep sensitive host information (like public IPs) private and out of version 
 ### WireGuard
 
 - **Template**: `roles/wireguard/templates/wg0.conf.j2`
-- Overlay network: 10.0.0.0/24
+- Overlay network: 10.130.5.0/24
 - Private keys generated locally on each node (never transmitted)
 - Worker nodes configured with 25-second persistent keepalive
 - Control plane acts as WireGuard endpoint
