@@ -81,11 +81,18 @@
     - kubeadm
     - kubectl
 
-- name: Configure kubelet node IP
+- name: Configure kubelet extra args (node IP + resource reservations)
   ansible.builtin.lineinfile:
     path: /etc/default/kubelet
     regexp: "^KUBELET_EXTRA_ARGS="
-    line: 'KUBELET_EXTRA_ARGS="--node-ip={{ wireguard_ip }}"'
+    line: >-
+      KUBELET_EXTRA_ARGS="{{
+        (['--node-ip=' + wireguard_ip]
+          + (['--kube-reserved=' + kubelet_kube_reserved] if (kubelet_kube_reserved | default('')) else [])
+          + (['--system-reserved=' + kubelet_system_reserved] if (kubelet_system_reserved | default('')) else [])
+          + (['--eviction-hard=' + kubelet_eviction_hard] if (kubelet_eviction_hard | default('')) else [])
+        ) | join(' ')
+      }}"
     mode: "0644"
     owner: root
     group: root
