@@ -60,9 +60,9 @@
       register: system_pod_status
       changed_when: false
 
-    - name: Get Flannel pod status
-      ansible.builtin.command: kubectl get pods -n kube-flannel --no-headers -o custom-columns=":status.phase"
-      register: flannel_pod_status
+    - name: Get Cilium pod status
+      ansible.builtin.command: kubectl get pods -n kube-system -l k8s-app=cilium --no-headers -o custom-columns=":status.phase"
+      register: cilium_pod_status
       changed_when: false
       failed_when: false
 
@@ -121,13 +121,13 @@
           Ready Nodes: {{ node_status.stdout_lines | select('match', 'True') | list | length }}
           {% set system_running = system_pod_status.stdout_lines | select('match', 'Running') | list | length %}
           System Pods Running: {{ system_running }}/{{ system_pod_status.stdout_lines | length }}
-          {% if flannel_pod_status.stdout_lines %}
-          {% set flannel_running_count = flannel_pod_status.stdout_lines | select('match', 'Running') | list | length %}
+          {% if cilium_pod_status.stdout_lines %}
+          {% set cilium_running_count = cilium_pod_status.stdout_lines | select('match', 'Running') | list | length %}
           {% else %}
-          {% set flannel_running_count = 0 %}
+          {% set cilium_running_count = 0 %}
           {% endif %}
-          {% set flannel_total_count = (flannel_pod_status.stdout_lines | length) if flannel_pod_status.stdout_lines else 0 %}
-          Flannel Pods Running: {{ flannel_running_count }}/{{ flannel_total_count }}
+          {% set cilium_total_count = (cilium_pod_status.stdout_lines | length) if cilium_pod_status.stdout_lines else 0 %}
+          Cilium Pods Running: {{ cilium_running_count }}/{{ cilium_total_count }}
 
           {% set ready_nodes = node_status.stdout_lines | select('match', 'True') | list | length %}
           {% if cluster_nodes.stdout_lines | length == ready_nodes %}
@@ -143,14 +143,14 @@
           ⚠️  Some system pods are not Running
           {% endif %}
 
-          {% set flannel_running = flannel_pod_status.stdout_lines | select('match', 'Running') | list | length %}
-          {% set flannel_total = flannel_pod_status.stdout_lines | length %}
-          {% if flannel_pod_status.stdout_lines and flannel_running == flannel_total %}
-          ✅ All Flannel pods are Running
-          {% elif flannel_pod_status.stdout_lines %}
-          ⚠️  Some Flannel pods are not Running
+          {% set cilium_running = cilium_pod_status.stdout_lines | select('match', 'Running') | list | length %}
+          {% set cilium_total = cilium_pod_status.stdout_lines | length %}
+          {% if cilium_pod_status.stdout_lines and cilium_running == cilium_total %}
+          ✅ All Cilium pods are Running
+          {% elif cilium_pod_status.stdout_lines %}
+          ⚠️  Some Cilium pods are not Running
           {% else %}
-          ❌ Flannel not deployed
+          ❌ Cilium not deployed
           {% endif %}
 
 - name: Test Pod Network

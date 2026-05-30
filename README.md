@@ -7,7 +7,7 @@ This Ansible playbook automates the deployment of a Kubernetes cluster with Wire
 - **Control Plane**: k8s (Oracle Cloud, Tokyo)
 - **Worker Nodes**: cm4 (Raspberry Pi CM4), s2204 (Ubuntu x86_64)
 - **Networking**: WireGuard tunnels + local network optimization
-- **CNI**: Flannel with custom configuration for WireGuard compatibility
+- **CNI**: Cilium (VXLAN tunnel mode over WireGuard, `kube-proxy-replacement`)
 - **Firewall**: UFW standardized across all worker nodes
 
 ## Prerequisites
@@ -90,8 +90,7 @@ The playbook will:
 3. Install Kubernetes components
 4. Initialize the control plane
 5. Join worker nodes
-6. Deploy and configure Flannel CNI
-7. Verify cluster health
+6. Verify cluster health
 
 ### Deployment Time
 
@@ -119,11 +118,9 @@ ansible-k8s-wireguard/
     │   └── handlers/main.yml
     ├── control-plane/       # Control plane initialization
     │   └── tasks/main.yml
-    ├── worker/              # Worker node configuration
-    │   ├── tasks/main.yml
-    │   └── handlers/main.yml
-    └── cni/                 # CNI deployment and configuration
-        └── tasks/main.yml
+    └── worker/              # Worker node configuration
+        ├── tasks/main.yml
+        └── handlers/main.yml
 ```
 
 ## Key Features
@@ -153,7 +150,6 @@ ansible-k8s-wireguard/
 - Addresses all known issues from manual deployment
 - Automatic CNI plugin installation
 - WireGuard connectivity verification
-- Flannel DaemonSet patching for API access
 
 ## Operations
 
@@ -216,9 +212,6 @@ make reconfigure-wireguard
 
 # Only join worker nodes
 ansible-playbook -i inventory.yml site.yml --limit=workers
-
-# Only deploy CNI
-ansible-playbook -i inventory.yml site.yml --tags=cni
 
 # Deploy on specific node only
 ansible-playbook -i inventory.yml site.yml --limit=cm4
@@ -338,7 +331,7 @@ tail -f ansible.log
 - **Local Communication** (cm4 ↔ s2204): ~0.5ms latency
 - **WireGuard Tunnels**: ~8ms latency, full gigabit throughput  
 - **Cluster API**: Direct access via FQDN
-- **Pod Networking**: Flannel VXLAN with optimized routing
+- **Pod Networking**: Cilium VXLAN tunnel mode over the WireGuard overlay
 
 ---
 
