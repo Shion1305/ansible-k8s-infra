@@ -12,6 +12,10 @@ all:
           wireguard_interface: wg0
           wireguard_port: 51820
           cni_version: v1.3.0
+          # 2 vCPU / 12Gi: memory-only reservation (avoid reserving scarce CPU)
+          kubelet_kube_reserved: "memory=512Mi"
+          kubelet_system_reserved: "memory=512Mi"
+          kubelet_eviction_hard: "memory.available<500Mi,nodefs.available<10%,imagefs.available<15%"
 
     workers:
       hosts:
@@ -24,6 +28,10 @@ all:
           wireguard_interface: wg0
           cni_version: v1.3.0
           has_ufw: true
+          # 4 vCPU / 8Gi: light reservation
+          kubelet_kube_reserved: "cpu=250m,memory=512Mi"
+          kubelet_system_reserved: "cpu=250m,memory=512Mi"
+          kubelet_eviction_hard: "memory.available<300Mi,nodefs.available<10%,imagefs.available<15%"
 
         s2204:
           ansible_host: s2204
@@ -34,6 +42,10 @@ all:
           wireguard_interface: wg0
           cni_version: v1.3.0
           has_ufw: true
+          # 20 vCPU / 32Gi: reservation already applied on this node
+          kubelet_kube_reserved: "cpu=500m,memory=1Gi"
+          kubelet_system_reserved: "cpu=500m,memory=1Gi"
+          kubelet_eviction_hard: "memory.available<500Mi,nodefs.available<10%,imagefs.available<15%"
 
         k8s-proxy:
           ansible_host: prox
@@ -44,12 +56,24 @@ all:
           wireguard_interface: wg0
           cni_version: v1.3.0
           has_ufw: true
+          # 2 vCPU / 12Gi: memory-only reservation (avoid reserving scarce CPU)
+          kubelet_kube_reserved: "memory=512Mi"
+          kubelet_system_reserved: "memory=512Mi"
+          kubelet_eviction_hard: "memory.available<500Mi,nodefs.available<10%,imagefs.available<15%"
 
   vars:
     # Kubernetes configuration
     kubernetes_version: "1.34.3-1.1"
     pod_network_cidr: "10.244.0.0/16"
     service_cidr: "10.96.0.0/12"
+
+    # kubelet resource reservations (defaults: none; override per host above).
+    # Empty string => the corresponding kubelet flag is omitted.
+    # NOTE: --eviction-hard, when set, replaces ALL eviction thresholds, so the
+    # per-host string keeps the nodefs/imagefs defaults (10%/15%) alongside memory.
+    kubelet_kube_reserved: ""
+    kubelet_system_reserved: ""
+    kubelet_eviction_hard: ""
 
     # WireGuard network
     wireguard_network: "10.130.5.0/24"
