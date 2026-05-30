@@ -169,3 +169,37 @@
     path: "/tmp/cni-plugins-{{ common_arch_effective }}-{{ cni_version }}.tgz"
     state: absent
   when: not common_cni_installed_ok
+
+# -------------------------------------------------------------------
+# apt periodic timers: run list refresh + unattended upgrades hourly
+# instead of the daily vendor default (override the systemd timers).
+# -------------------------------------------------------------------
+- name: Ensure apt periodic timer override directories exist
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.timer.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - apt-daily
+    - apt-daily-upgrade
+  when: ansible_os_family == "Debian"
+
+- name: Set apt periodic timers to run hourly
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item }}.timer.d/override.conf"
+    # Empty OnCalendar= clears the list-valued vendor default before setting hourly.
+    content: |
+      [Timer]
+      OnCalendar=
+      OnCalendar=hourly
+      RandomizedDelaySec=5m
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - apt-daily
+    - apt-daily-upgrade
+  when: ansible_os_family == "Debian"
+  notify: Reload systemd and restart apt timers
