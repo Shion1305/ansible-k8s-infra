@@ -53,7 +53,7 @@
     - name: Check CNI bridge interfaces
       ansible.builtin.shell: |
         set -o pipefail
-        ip link show | grep -E "(cni0|flannel|docker0)" || echo "No CNI bridges found"
+        ip link show | grep -E "(cni0|flannel|docker0|cilium)" || echo "No CNI bridges found"
       register: cni_bridges
       changed_when: false
 

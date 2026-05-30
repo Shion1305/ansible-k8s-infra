@@ -317,6 +317,9 @@
   gather_facts: false
 
   tasks:
+    # Removes leftover bridges from previous/legacy CNIs (e.g. Flannel).
+    # Cilium's own interfaces (cilium_host, cilium_net, cilium_vxlan) are
+    # intentionally NOT touched here.
     - name: Remove old CNI bridge interfaces that might conflict
       ansible.builtin.shell: |
         for bridge in cni0 docker0 flannel.1; do

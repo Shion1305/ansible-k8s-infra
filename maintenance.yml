@@ -83,9 +83,9 @@
       register: system_pods
       changed_when: false
 
-    - name: Check Flannel pods
-      ansible.builtin.command: kubectl get pods -n kube-flannel -o wide
-      register: flannel_pods
+    - name: Check Cilium pods
+      ansible.builtin.command: kubectl get pods -n kube-system -l k8s-app=cilium -o wide
+      register: cilium_pods
       changed_when: false
 
     - name: Display cluster status
@@ -97,8 +97,8 @@
           === SYSTEM PODS ===
           {{ system_pods.stdout }}
 
-          === FLANNEL PODS ===
-          {{ flannel_pods.stdout }}
+          === CILIUM PODS ===
+          {{ cilium_pods.stdout }}
 
 - name: Update Cluster Components
   hosts: all
