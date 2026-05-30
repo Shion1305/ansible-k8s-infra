@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Control Plane (k8s):** Oracle Cloud instance in Tokyo (ARM64)
 - **Worker Nodes:** Raspberry Pi CM4 (ARM64) and Ubuntu x86_64 VM
 
-**Core Technologies:** Ansible 2.19.0, Kubernetes 1.34.3, containerd 1.7.27, WireGuard, Cilium CNI (managed by ArgoCD/GitOps)
+**Core Technologies:** Ansible 2.19.0, Kubernetes 1.34.3, containerd 1.7.27, WireGuard, Cilium CNI
 
 ## Development Setup
 
@@ -78,8 +78,6 @@ uv run ansible-playbook -i inventory.yml troubleshoot.yml
 4. **worker**: kubeadm join for worker nodes
 5. **wireguard**: WireGuard installation, key generation, and configuration via `wg0.conf.j2` template
 
-> **CNI note:** There is no `cni` role. The CNI (Cilium) is deployed and reconciled by ArgoCD (GitOps), not by Ansible. Ansible only prepares nodes (CNI plugin binaries via the `common` role, kernel modules, sysctl, and legacy-bridge cleanup in site.yml). Cluster networking health is verified by `verify.yml`.
-
 ### Deployment Flow (site.yml)
 
 1. Setup common prerequisites across all hosts
@@ -88,7 +86,7 @@ uv run ansible-playbook -i inventory.yml troubleshoot.yml
 4. Initialize Kubernetes control plane (kubeadm init)
 5. Join worker nodes (kubeadm join)
 6. Prepare CNI environment (clean conflicting legacy bridges)
-7. Verify final cluster status (the CNI itself, Cilium, is deployed by ArgoCD — not this playbook)
+7. Verify final cluster status
 
 ### Inventory Structure (inventory.yml)
 
@@ -142,7 +140,7 @@ To keep sensitive host information (like public IPs) private and out of version 
 
 ### Kubernetes Networking
 
-- **Pod CIDR**: 10.244.0.0/16 (Cilium, `ipam: kubernetes` using per-node PodCIDRs)
+- **Pod CIDR**: 10.244.0.0/16 (Cilium)
 - **Service CIDR**: 10.96.0.0/12
 - **kubeadm init** uses WireGuard IP as advertise address
 - Kubelet configured with node-ip pointing to WireGuard interface
@@ -257,7 +255,6 @@ just fix-nodes                              # Restart kubelet and verify
 │   ├── control_plane/                    # Control plane setup
 │   ├── worker/                           # Worker setup
 │   └── wireguard/                        # WireGuard overlay
-│                                         # (no cni role — Cilium is managed by ArgoCD)
 └── .github/workflows/ansible-lint.yml    # CI/CD pipeline
 ```
 

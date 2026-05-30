@@ -7,7 +7,7 @@ This Ansible playbook automates the deployment of a Kubernetes cluster with Wire
 - **Control Plane**: k8s (Oracle Cloud, Tokyo)
 - **Worker Nodes**: cm4 (Raspberry Pi CM4), s2204 (Ubuntu x86_64)
 - **Networking**: WireGuard tunnels + local network optimization
-- **CNI**: Cilium (VXLAN tunnel mode over WireGuard, `kube-proxy-replacement`), deployed/reconciled by ArgoCD
+- **CNI**: Cilium (VXLAN tunnel mode over WireGuard, `kube-proxy-replacement`)
 - **Firewall**: UFW standardized across all worker nodes
 
 ## Prerequisites
@@ -92,8 +92,6 @@ The playbook will:
 5. Join worker nodes
 6. Verify cluster health
 
-> The CNI (Cilium) is **not** installed by this playbook — it is deployed and reconciled by ArgoCD (GitOps). Ansible only prepares the nodes (CNI plugin binaries, kernel modules, sysctl, legacy-bridge cleanup); cluster networking health is asserted by `verify.yml`.
-
 ### Deployment Time
 
 Expected deployment time: **20-30 minutes** (vs ~3 hours manual)
@@ -125,8 +123,6 @@ ansible-k8s-wireguard/
         └── handlers/main.yml
 ```
 
-> There is no `cni` role: Cilium is managed by ArgoCD, not Ansible.
-
 ## Key Features
 
 ### 🔒 **Security-First Design**
@@ -154,7 +150,6 @@ ansible-k8s-wireguard/
 - Addresses all known issues from manual deployment
 - Automatic CNI plugin installation
 - WireGuard connectivity verification
-- CNI (Cilium) managed externally by ArgoCD/GitOps
 
 ## Operations
 

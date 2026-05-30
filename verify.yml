@@ -150,7 +150,7 @@
           {% elif cilium_pod_status.stdout_lines %}
           ⚠️  Some Cilium pods are not Running
           {% else %}
-          ❌ Cilium not deployed (managed by ArgoCD)
+          ❌ Cilium not deployed
           {% endif %}
 
 - name: Test Pod Network
