@@ -8,13 +8,25 @@
   gather_facts: true
 
   pre_tasks:
-    - name: Remove legacy Kubernetes APT sources to prevent Signed-By conflicts
+    # The canonical Kubernetes APT source is /etc/apt/sources.list.d/kubernetes.list
+    # (managed by the kubernetes role via `filename: kubernetes`). Remove any
+    # stray version-named or backup files so they can't pin an old channel or
+    # cause Signed-By conflicts. Version-agnostic: no per-upgrade maintenance.
+    - name: Find stray legacy Kubernetes APT source files
+      ansible.builtin.find:
+        paths: /etc/apt/sources.list.d
+        patterns:
+          - "pkgs_k8s_io_core_stable_v1_*_deb.list"
+          - "kubernetes.list.*"
+      register: stray_k8s_sources
+
+    - name: Remove stray legacy Kubernetes APT sources (keep canonical kubernetes.list)
       ansible.builtin.file:
-        path: "{{ item }}"
+        path: "{{ item.path }}"
         state: absent
-      loop:
-        - /etc/apt/sources.list.d/pkgs_k8s_io_core_stable_v1_33_deb.list
-        - /etc/apt/sources.list.d/pkgs_k8s_io_core_stable_v1_34_deb.list
+      loop: "{{ stray_k8s_sources.files }}"
+      loop_control:
+        label: "{{ item.path }}"
 
     - name: Update apt cache (Debian/Ubuntu)
       ansible.builtin.apt:

@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Control Plane (k8s):** Oracle Cloud instance in Tokyo (ARM64)
 - **Worker Nodes:** Raspberry Pi CM4 (ARM64) and Ubuntu x86_64 VM
 
-**Core Technologies:** Ansible 2.19.0, Kubernetes 1.34.3, containerd 1.7.27, WireGuard, Cilium CNI
+**Core Technologies:** Ansible 2.19.0, Kubernetes 1.35.5, containerd 1.7.27, WireGuard, Cilium CNI
 
 ## Development Setup
 
