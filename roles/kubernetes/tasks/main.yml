@@ -91,19 +91,6 @@
     group: root
     create: true
   notify: Restart kubelet
-  when: inventory_hostname in groups['workers']
-
-- name: Configure kubelet node IP for control plane
-  ansible.builtin.lineinfile:
-    path: /etc/default/kubelet
-    regexp: "^KUBELET_EXTRA_ARGS="
-    line: 'KUBELET_EXTRA_ARGS="--node-ip={{ local_ip }}"'
-    mode: "0644"
-    owner: root
-    group: root
-    create: true
-  notify: Restart kubelet
-  when: inventory_hostname in groups['control_plane']
 
 - name: Enable and start services
   ansible.builtin.systemd:
