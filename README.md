@@ -90,8 +90,9 @@ The playbook will:
 3. Install Kubernetes components
 4. Initialize the control plane
 5. Join worker nodes
-6. Verify the Cilium CNI is healthy (Cilium is deployed by ArgoCD/GitOps, not by this playbook)
-7. Verify cluster health
+6. Verify cluster health
+
+> The CNI (Cilium) is **not** installed by this playbook — it is deployed and reconciled by ArgoCD (GitOps). Ansible only prepares the nodes (CNI plugin binaries, kernel modules, sysctl, legacy-bridge cleanup); cluster networking health is asserted by `verify.yml`.
 
 ### Deployment Time
 
@@ -119,12 +120,12 @@ ansible-k8s-wireguard/
     │   └── handlers/main.yml
     ├── control-plane/       # Control plane initialization
     │   └── tasks/main.yml
-    ├── worker/              # Worker node configuration
-    │   ├── tasks/main.yml
-    │   └── handlers/main.yml
-    └── cni/                 # CNI deployment and configuration
-        └── tasks/main.yml
+    └── worker/              # Worker node configuration
+        ├── tasks/main.yml
+        └── handlers/main.yml
 ```
+
+> There is no `cni` role: Cilium is managed by ArgoCD, not Ansible.
 
 ## Key Features
 
@@ -153,7 +154,7 @@ ansible-k8s-wireguard/
 - Addresses all known issues from manual deployment
 - Automatic CNI plugin installation
 - WireGuard connectivity verification
-- Cilium CNI health verification (deployed via ArgoCD/GitOps)
+- CNI (Cilium) managed externally by ArgoCD/GitOps
 
 ## Operations
 
@@ -216,9 +217,6 @@ make reconfigure-wireguard
 
 # Only join worker nodes
 ansible-playbook -i inventory.yml site.yml --limit=workers
-
-# Only deploy CNI
-ansible-playbook -i inventory.yml site.yml --tags=cni
 
 # Deploy on specific node only
 ansible-playbook -i inventory.yml site.yml --limit=cm4

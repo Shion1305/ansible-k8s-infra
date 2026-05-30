@@ -70,14 +70,15 @@ uv run ansible-playbook -i inventory.yml troubleshoot.yml
 - **test-standardized.yml**: Connectivity and health test suite
 - **test-workers.yml**: Worker-specific tests
 
-### Roles (6 modular components)
+### Roles (5 modular components)
 
 1. **common** (173 lines): Prerequisites - packages, kernel modules, sysctl networking, CNI plugins
 2. **kubernetes** (80+ lines): containerd + Kubernetes components (kubelet, kubeadm, kubectl)
 3. **control_plane**: kubeadm init and kubeconfig setup for control plane
 4. **worker**: kubeadm join for worker nodes
 5. **wireguard**: WireGuard installation, key generation, and configuration via `wg0.conf.j2` template
-6. **cni**: Cilium CNI readiness verification (Cilium itself is deployed by ArgoCD/GitOps, not Ansible)
+
+> **CNI note:** There is no `cni` role. The CNI (Cilium) is deployed and reconciled by ArgoCD (GitOps), not by Ansible. Ansible only prepares nodes (CNI plugin binaries via the `common` role, kernel modules, sysctl, and legacy-bridge cleanup in site.yml). Cluster networking health is verified by `verify.yml`.
 
 ### Deployment Flow (site.yml)
 
@@ -87,8 +88,7 @@ uv run ansible-playbook -i inventory.yml troubleshoot.yml
 4. Initialize Kubernetes control plane (kubeadm init)
 5. Join worker nodes (kubeadm join)
 6. Prepare CNI environment (clean conflicting legacy bridges)
-7. Verify Cilium CNI is healthy (Cilium is deployed/reconciled by ArgoCD, not Ansible)
-8. Verify final cluster status
+7. Verify final cluster status (the CNI itself, Cilium, is deployed by ArgoCD — not this playbook)
 
 ### Inventory Structure (inventory.yml)
 
@@ -256,8 +256,8 @@ just fix-nodes                              # Restart kubelet and verify
 │   ├── kubernetes/                       # K8s components
 │   ├── control_plane/                    # Control plane setup
 │   ├── worker/                           # Worker setup
-│   ├── wireguard/                        # WireGuard overlay
-│   └── cni/                              # Cilium CNI readiness checks (deployed via ArgoCD)
+│   └── wireguard/                        # WireGuard overlay
+│                                         # (no cni role — Cilium is managed by ArgoCD)
 └── .github/workflows/ansible-lint.yml    # CI/CD pipeline
 ```
 

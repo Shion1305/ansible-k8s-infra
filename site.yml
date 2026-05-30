@@ -332,22 +332,10 @@
       changed_when: "'Removing bridge:' in bridge_cleanup_site.stdout"
       failed_when: false
 
-- name: Deploy CNI
-  hosts: control_plane
-  become: true
-  gather_facts: false
-
-  roles:
-    - cni
-
-- name: Verify CNI Deployment
-  hosts: control_plane
-  become: true
-  gather_facts: false
-
-  tasks:
-    - name: Include CNI verification tasks
-      ansible.builtin.include_tasks: roles/cni/tasks/verify_cni.yml
+# NOTE: The CNI (Cilium) is deployed and reconciled by ArgoCD (GitOps), not by
+# this playbook. Nothing below depends on the CNI being up. Cluster networking
+# health is asserted separately by verify.yml (nodes Ready, CoreDNS, pod
+# connectivity).
 - name: Verify Deployment
   hosts: control_plane
   become: true
