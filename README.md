@@ -235,11 +235,25 @@ service_cidr: "10.96.0.0/12"         # Service network
 wireguard_network: "10.130.5.0/24"     # WireGuard network
 ```
 
+### WireGuard Addressing (Zones)
+
+The overlay `10.130.5.0/24` is split into role/location **zones** (`oci`,
+`home-static`, `owned-mobile`, `external-static`, `external-mobile`). Every host
+and static peer declares a `wireguard_zone` / `zone`, and CI fails if the
+assigned IP doesn't fall inside that zone's CIDR. This keeps home vs cloud (and
+owned vs external) distinguishable by IP and addressable as a CIDR.
+
+See **[docs/WIREGUARD_ADDRESSING.md](docs/WIREGUARD_ADDRESSING.md)** for the full
+plan, current allocation, and how to pick an IP/zone for a new node.
+
 ### Add Additional Nodes
 
-1. Add node to `inventory.yml` under appropriate group
-2. Configure SSH access
-3. Run playbook: `ansible-playbook -i inventory.yml site.yml --limit=new_node`
+1. Pick a zone and a free IP inside its CIDR (see the addressing plan above)
+2. Add the node to `inventory.yml` under the appropriate group, with both
+   `wireguard_ip` and `wireguard_zone`
+3. Configure SSH access
+4. Validate: `just lint && just test` (the zone test checks IP/zone consistency)
+5. Run playbook: `ansible-playbook -i inventory.yml site.yml --limit=new_node`
 
 ## Monitoring and Maintenance
 
