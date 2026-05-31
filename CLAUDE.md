@@ -186,8 +186,9 @@ workers talk directly, set a shared **`wireguard_direct_peer_group`** on them in
 - **Caveat:** because /32 beats /24, the direct path does **not** fail over to
   the hub if it breaks — only enable this for nodes that share a LAN.
 - Current use: `cm4` and `s2204` share group `home` (same home LAN).
-- Offline check: `uv run python tests/render_wg_template.py` renders the template
-  for each node and asserts the expected peer layout without touching live hosts.
+- Offline check: `just test` (pytest) renders the template and asserts the peer
+  layout for both hub-only and direct-peer nodes — see
+  `tests/test_wireguard_template.py`.
 
 ### Kubernetes Networking
 

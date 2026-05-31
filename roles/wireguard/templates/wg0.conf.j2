@@ -35,8 +35,8 @@ PublicKey = {{ hostvars[groups['control_plane'][0]]['wireguard_public_key'] }}
 Endpoint = root.{{ hostvars[groups['control_plane'][0]]['ansible_host'] }}:{{ hostvars[groups['control_plane'][0]]['wireguard_port'] }}
 AllowedIPs = {{ wireguard_network }}
 PersistentKeepalive = 25
-
 {% if my_peer_group != '' %}
+
 # Direct same-site peers. Each advertises a /32 AllowedIPs that is more specific
 # than the hub's /24, so WireGuard's longest-prefix crypto-routing sends traffic
 # for these nodes straight over the LAN instead of relaying via the control plane.
