@@ -165,18 +165,19 @@ To keep sensitive host information (like public IPs) private and out of version 
 
 #### Direct same-site peering (partial mesh)
 
-By default every node only peers with the control-plane hub, so worker→worker
-traffic relays through the control plane (extra cloud egress + ~16ms round-trip
-for nodes that are physically next to each other). To let same-site workers talk
-directly, set a shared **`wireguard_direct_peer_group`** on them in
+On the overlay, a worker's only peer is the control-plane hub, and that peer's
+`AllowedIPs` is the whole overlay (`10.130.5.0/24`). So a worker has a single
+route for every overlay destination — the hub. Even cm4 → s2204 (both on the
+same home LAN) is therefore sent up to the control plane and relayed back down
+(extra cloud egress + ~16ms round-trip instead of ~0.5ms). To let same-site
+workers talk directly, set a shared **`wireguard_direct_peer_group`** on them in
 `inventory.yml`:
 
 - Nodes with the **same non-empty** `wireguard_direct_peer_group` add a direct
   `[Peer]` for each other (in addition to the hub) with `AllowedIPs = <wg_ip>/32`.
   That /32 is more specific than the hub's /24, so WireGuard's longest-prefix
-  crypto-routing sends same-site traffic over the LAN; everything else still uses
-  the hub. Cilium runs VXLAN over WireGuard, so pod traffic (outer IP = node wg
-  IP) follows the same direct path — no pod CIDR entries needed.
+  crypto-routing sends traffic for that node straight over the LAN; every other
+  overlay destination still matches the /24 and uses the hub.
 - The endpoint defaults to the peer's `ansible_default_ipv4` (its LAN IP);
   override per host with `wireguard_lan_endpoint`. Pin LAN IPs via DHCP
   reservation so the static endpoint stays valid.
