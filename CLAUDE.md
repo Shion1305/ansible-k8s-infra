@@ -161,7 +161,32 @@ To keep sensitive host information (like public IPs) private and out of version 
 - Overlay network: 10.130.5.0/24
 - Private keys generated locally on each node (never transmitted)
 - Worker nodes configured with 25-second persistent keepalive
-- Control plane acts as WireGuard endpoint
+- Control plane acts as WireGuard endpoint (hub)
+
+#### Direct same-site peering (partial mesh)
+
+By default every node only peers with the control-plane hub, so worker→worker
+traffic relays through the control plane (extra cloud egress + ~16ms round-trip
+for nodes that are physically next to each other). To let same-site workers talk
+directly, set a shared **`wireguard_direct_peer_group`** on them in
+`inventory.yml`:
+
+- Nodes with the **same non-empty** `wireguard_direct_peer_group` add a direct
+  `[Peer]` for each other (in addition to the hub) with `AllowedIPs = <wg_ip>/32`.
+  That /32 is more specific than the hub's /24, so WireGuard's longest-prefix
+  crypto-routing sends same-site traffic over the LAN; everything else still uses
+  the hub. Cilium runs VXLAN over WireGuard, so pod traffic (outer IP = node wg
+  IP) follows the same direct path — no pod CIDR entries needed.
+- The endpoint defaults to the peer's `ansible_default_ipv4` (its LAN IP);
+  override per host with `wireguard_lan_endpoint`. Pin LAN IPs via DHCP
+  reservation so the static endpoint stays valid.
+- Direct-peer members also get a `ListenPort` and a UFW `udp/{{ wireguard_port }}`
+  allow rule (added automatically when the group is non-empty).
+- **Caveat:** because /32 beats /24, the direct path does **not** fail over to
+  the hub if it breaks — only enable this for nodes that share a LAN.
+- Current use: `cm4` and `s2204` share group `home` (same home LAN).
+- Offline check: `uv run python tests/render_wg_template.py` renders the template
+  for each node and asserts the expected peer layout without touching live hosts.
 
 ### Kubernetes Networking
 
@@ -243,6 +268,12 @@ GitHub Actions (`.github/workflows/ansible-lint.yml`):
 - Edit `roles/wireguard/templates/wg0.conf.j2`
 - Key generation is automatic from inventory variables
 - Test with `just deploy <host>` on a single node first
+- **Direct-peer (mesh) members must be deployed together.** Worker nodes
+  regenerate their key and fully rewrite `wg0.conf` on every run, so deploying
+  only one member of a `wireguard_direct_peer_group` leaves its partner pointing
+  a /32 at a node that no longer knows its key — breaking that direction until
+  the partner is redeployed. Deploy the whole group (`--limit=cm4,s2204`) or run
+  a full `just deploy`. Preview first with `-e wireguard_dry_run=true`.
 
 ### Troubleshooting Cluster Issues
 

@@ -1,6 +1,7 @@
+{% set my_peer_group = wireguard_direct_peer_group | default('') %}
 [Interface]
 Address = {{ wireguard_ip }}/24
-{% if inventory_hostname in groups['control_plane'] %}
+{% if inventory_hostname in groups['control_plane'] or my_peer_group != '' %}
 ListenPort = {{ wireguard_port }}
 {% endif %}
 PrivateKey = {{ wireguard_private_key }}
@@ -27,11 +28,36 @@ AllowedIPs = {{ hostvars[host]['wireguard_ip'] }}/32
 {% endfor %}
 {% endif %}
 {% else %}
-# Control plane
+# Control plane (hub): catch-all /24 route. Anything without a more specific
+# direct-peer route below is relayed through the control plane.
 [Peer]
 PublicKey = {{ hostvars[groups['control_plane'][0]]['wireguard_public_key'] }}
 Endpoint = root.{{ hostvars[groups['control_plane'][0]]['ansible_host'] }}:{{ hostvars[groups['control_plane'][0]]['wireguard_port'] }}
 AllowedIPs = {{ wireguard_network }}
 PersistentKeepalive = 25
+
+{% if my_peer_group != '' %}
+# Direct same-site peers. Each advertises a /32 AllowedIPs that is more specific
+# than the hub's /24, so WireGuard's longest-prefix crypto-routing sends traffic
+# for these nodes straight over the LAN instead of relaying via the control plane.
+# NOTE: because /32 wins over /24, the direct path does NOT fail over to the hub
+# if it breaks -- acceptable here since the peers share a LAN.
+{% set direct_peer_hosts = groups['all'] | map('extract', hostvars)
+     | selectattr('wireguard_direct_peer_group', 'defined')
+     | selectattr('wireguard_direct_peer_group', 'equalto', my_peer_group)
+     | selectattr('wireguard_public_key', 'defined')
+     | selectattr('wireguard_ip', 'defined')
+     | map(attribute='inventory_hostname')
+     | reject('equalto', inventory_hostname) | sort | list %}
+{% for host in direct_peer_hosts %}
+[Peer]
+# {{ host }} (direct LAN peer)
+PublicKey = {{ hostvars[host]['wireguard_public_key'] }}
+AllowedIPs = {{ hostvars[host]['wireguard_ip'] }}/32
+Endpoint = {{ hostvars[host]['wireguard_lan_endpoint'] | default(hostvars[host]['ansible_default_ipv4']['address']) }}:{{ hostvars[host]['wireguard_port'] | default(wireguard_port) }}
+PersistentKeepalive = 25
+
+{% endfor %}
+{% endif %}
 {% endif %}
 
