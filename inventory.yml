@@ -34,11 +34,11 @@ all:
           # WireGuard tunnel directly with each other so same-site traffic never
           # relays through the control plane. See `wireguard_direct_peer_group`.
           wireguard_direct_peer_group: home
-          # LAN-reachable endpoint advertised to same-group peers. Defaults to
-          # this node's primary IP (ansible_default_ipv4). Override only if the
-          # node is multi-homed or its LAN IP is not on the default route. Pin
-          # the LAN IP via a DHCP reservation to keep this stable across reboots.
-          # wireguard_lan_endpoint: "192.168.x.y"
+          # cm4's address on the shared home LAN, advertised to same-group peers
+          # as the direct-tunnel endpoint. Set explicitly (instead of relying on
+          # the auto-detected default-route IP); pin via DHCP reservation so it
+          # stays stable across reboots.
+          wireguard_lan_endpoint: "192.168.40.34"
           # 4 vCPU / 8Gi: light reservation
           kubelet_kube_reserved: "cpu=250m,memory=512Mi"
           kubelet_system_reserved: "cpu=250m,memory=512Mi"
@@ -56,7 +56,8 @@ all:
           has_ufw: true
           # Same home LAN as cm4 -> they peer directly (see cm4 for details).
           wireguard_direct_peer_group: home
-          # wireguard_lan_endpoint: "192.168.x.y"
+          # s2204's address on the shared home LAN (direct-tunnel endpoint).
+          wireguard_lan_endpoint: "192.168.40.32"
           # 20 vCPU / 32Gi: reservation already applied on this node
           kubelet_kube_reserved: "cpu=500m,memory=1Gi"
           kubelet_system_reserved: "cpu=500m,memory=1Gi"
