@@ -63,6 +63,25 @@ all:
           kubelet_system_reserved: "cpu=500m,memory=1Gi"
           kubelet_eviction_hard: "memory.available<500Mi,nodefs.available<10%,imagefs.available<15%"
 
+        s2605:
+          ansible_host: s2605
+          ansible_user: shion1305
+          ansible_ssh_private_key_file: ~/.ssh/credentials/shion1305
+          wireguard_ip: 10.130.5.67
+          wireguard_zone: home-static
+          architecture: amd64
+          wireguard_interface: wg0
+          cni_version: v1.3.0
+          has_ufw: true
+          # Same home LAN as cm4/s2204 -> they peer directly (see cm4 for details).
+          wireguard_direct_peer_group: home
+          # s2605's address on the shared home LAN (direct-tunnel endpoint).
+          wireguard_lan_endpoint: "192.168.40.35"
+          # 24 vCPU / 60Gi: light reservation
+          kubelet_kube_reserved: "cpu=500m,memory=1Gi"
+          kubelet_system_reserved: "cpu=500m,memory=1Gi"
+          kubelet_eviction_hard: "memory.available<500Mi,nodefs.available<10%,imagefs.available<15%"
+
         k8s-proxy:
           ansible_host: prox
           ansible_user: ubuntu
