@@ -96,20 +96,45 @@ control_plane:  # k8s node
     k8s:
       ansible_host: k8s.shion1305.com
       wireguard_ip: 10.130.5.1
+      wireguard_zone: oci          # required; IP must fall in the zone's CIDR
       # ... other vars
 
 workers:  # cm4, s2204, and secret hosts
   hosts:
     cm4:
       ansible_host: cm4
-      wireguard_ip: 10.130.5.3
+      wireguard_ip: 10.130.5.65
+      wireguard_zone: home-static
     s2204:
       ansible_host: s2204
-      wireguard_ip: 10.130.5.4
+      wireguard_ip: 10.130.5.66
+      wireguard_zone: home-static
     k8s-proxy:
       ansible_host: prox
-      wireguard_ip: 10.130.5.21
+      wireguard_ip: 10.130.5.2
+      wireguard_zone: oci
 ```
+
+### WireGuard addressing plan (zones)
+
+The overlay `10.130.5.0/24` is partitioned into role/location zones, defined once
+in `inventory.yml` under `wireguard_zones`:
+
+- `oci` → `10.130.5.0/29` — cloud nodes (control plane, k8s-proxy)
+- `home-static` → `10.130.5.64/27` — always-on home machines (k8s workers)
+- `owned-mobile` → `10.130.5.96/28` — my own roaming devices
+- `external-static` → `10.130.5.128/28` — other people's always-on hosts
+- `external-mobile` → `10.130.5.144/28` — other people's roaming devices
+
+Every host and static peer **must** declare a `wireguard_zone` (hosts) / `zone`
+(static peers), and the assigned IP must fall inside that zone's CIDR.
+`tests/test_inventory_zones.py` (run by `just test` in CI) fails on a missing
+attribute, a zone/IP mismatch, an out-of-overlay IP, a duplicate IP, or
+overlapping zones. The control plane keeps `10.130.5.1` — never renumber it
+(it is baked into the cluster PKI / etcd / `apiserver_advertise_address`).
+
+Full reference (current allocation, reserved blocks, how to add a host/peer,
+renumbering caveats): **`docs/WIREGUARD_ADDRESSING.md`**.
 
 ### Secret Hosts
 
@@ -124,7 +149,7 @@ To keep sensitive host information (like public IPs) private and out of version 
 **Example: k8s-proxy host**
 
 - Stored in inventory.yml with `ansible_host: prox` (hostname, not IP)
-- Uses internal WireGuard IP: 10.130.5.21
+- Uses internal WireGuard IP: 10.130.5.2 (zone `oci`)
 - Public IP is kept private and not committed to git
 - Deploys like any other worker node: `just deploy =k8s-proxy`
 

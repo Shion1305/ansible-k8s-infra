@@ -8,6 +8,7 @@ all:
           ansible_user: ubuntu
           ansible_ssh_private_key_file: ~/.ssh/credentials/shion1305-oci
           wireguard_ip: 10.130.5.1
+          wireguard_zone: oci
           architecture: arm64
           wireguard_interface: wg0
           wireguard_port: 51820
@@ -23,7 +24,8 @@ all:
           ansible_host: cm4
           ansible_user: shion
           ansible_ssh_private_key_file: ~/.ssh/credentials/rasp-cm4
-          wireguard_ip: 10.130.5.3
+          wireguard_ip: 10.130.5.65
+          wireguard_zone: home-static
           architecture: arm64
           wireguard_interface: wg0
           cni_version: v1.3.0
@@ -37,7 +39,8 @@ all:
           ansible_host: s2204
           ansible_user: shion
           ansible_ssh_private_key_file: ~/.ssh/credentials/shion1305
-          wireguard_ip: 10.130.5.4
+          wireguard_ip: 10.130.5.66
+          wireguard_zone: home-static
           architecture: amd64
           wireguard_interface: wg0
           cni_version: v1.3.0
@@ -51,7 +54,8 @@ all:
           ansible_host: prox
           ansible_user: ubuntu
           ansible_ssh_private_key_file: ~/.ssh/credentials/shion1305-oci
-          wireguard_ip: 10.130.5.21
+          wireguard_ip: 10.130.5.2
+          wireguard_zone: oci
           architecture: arm64
           wireguard_interface: wg0
           cni_version: v1.3.0
@@ -81,23 +85,33 @@ all:
     # WireGuard network
     wireguard_network: "10.130.5.0/24"
 
-    # Static WireGuard peers (non-Kubernetes nodes)
+    # WireGuard overlay addressing plan. Every host and static peer MUST declare a
+    # `wireguard_zone`; the IP it is assigned MUST fall inside that zone's CIDR.
+    # CI (tests/test_inventory_zones.py) enforces this and fails on a missing
+    # attribute, a zone/IP mismatch, an out-of-overlay IP, or a duplicate IP.
+    # Unassigned blocks (room to grow): .8/29, .16/28, .32/27, .112/28,
+    # .160/27, .192/26.
+    wireguard_zones:
+      oci: "10.130.5.0/29"               # cloud nodes (control plane, k8s-proxy)
+      home-static: "10.130.5.64/27"      # always-on home machines (k8s workers)
+      owned-mobile: "10.130.5.96/28"     # my own roaming devices (laptops/phones)
+      external-static: "10.130.5.128/28" # other people's always-on hosts
+      external-mobile: "10.130.5.144/28" # other people's roaming devices
+
+    # Static WireGuard peers (non-Kubernetes nodes).
+    # `zone` is required and its CIDR must contain `allowed_ips` (CI-enforced).
+    # NOTE: renumbering a static peer also requires updating that device's own
+    # wg config `Address` to match -- they are not managed by this repo.
     wireguard_static_peers:
       mac-m4-max:
         public_key: "nP4kEiL1SQHb3emQlqit43UzroOYa+PZGtsBxJQbaFM="
-        allowed_ips: "10.130.5.129/32"
+        allowed_ips: "10.130.5.97/32"
+        zone: owned-mobile
 
       tomoya-mac:
         public_key: "+6KaWGZ4ePBZPhQJhGrMK4qU837OzXvNe86nntx1kno="
-        allowed_ips: "10.130.5.130/32"
-
-      yhost1:
-        public_key: "MkLMc9uNqgOyRIoL+H4GnRjSaZdqb2n8Pu4OAv7oB24="
-        allowed_ips: "10.130.5.193/32"
-
-      yhost2:
-        public_key: "tNeoX+ZsCphucM6C37KaclacOJTRCy90021+yPHlR0E="
-        allowed_ips: "10.130.5.194/32"
+        allowed_ips: "10.130.5.145/32"
+        zone: external-mobile
 
     # Control plane endpoint
     control_plane_endpoint: "k8s.shion1305.com:6443"
