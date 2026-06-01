@@ -161,7 +161,36 @@ To keep sensitive host information (like public IPs) private and out of version 
 - Overlay network: 10.130.5.0/24
 - Private keys generated locally on each node (never transmitted)
 - Worker nodes configured with 25-second persistent keepalive
-- Control plane acts as WireGuard endpoint
+- Control plane acts as WireGuard endpoint (hub)
+
+#### Direct same-site peering (partial mesh)
+
+On the overlay, a worker's only peer is the control-plane hub, and that peer's
+`AllowedIPs` is the whole overlay (`10.130.5.0/24`). So a worker has a single
+route for every overlay destination — the hub. Even cm4 → s2204 (both on the
+same home LAN) is therefore sent up to the control plane and relayed back down
+(extra cloud egress + ~16ms round-trip instead of ~0.5ms). To let same-site
+workers talk directly, set a shared **`wireguard_direct_peer_group`** on them in
+`inventory.yml`:
+
+- Nodes with the **same non-empty** `wireguard_direct_peer_group` add a direct
+  `[Peer]` for each other (in addition to the hub) with `AllowedIPs = <wg_ip>/32`.
+  That /32 is more specific than the hub's /24, so WireGuard's longest-prefix
+  crypto-routing sends traffic for that node straight over the LAN; every other
+  overlay destination still matches the /24 and uses the hub.
+- The endpoint defaults to the peer's `ansible_default_ipv4` (its LAN IP);
+  override per host with `wireguard_lan_endpoint`. Pin LAN IPs via DHCP
+  reservation so the static endpoint stays valid. A member whose endpoint can't
+  be resolved (no override and no gathered `ansible_default_ipv4`) is skipped —
+  it stays reachable via the hub instead of failing the whole render.
+- Direct-peer members also get a `ListenPort` and a UFW `udp/{{ wireguard_port }}`
+  allow rule (added automatically when the group is non-empty).
+- **Caveat:** because /32 beats /24, the direct path does **not** fail over to
+  the hub if it breaks — only enable this for nodes that share a LAN.
+- Current use: `cm4` and `s2204` share group `home` (same home LAN).
+- Offline check: `just test` (pytest) renders the template and asserts the peer
+  layout for both hub-only and direct-peer nodes — see
+  `tests/test_wireguard_template.py`.
 
 ### Kubernetes Networking
 
@@ -243,6 +272,12 @@ GitHub Actions (`.github/workflows/ansible-lint.yml`):
 - Edit `roles/wireguard/templates/wg0.conf.j2`
 - Key generation is automatic from inventory variables
 - Test with `just deploy <host>` on a single node first
+- **Direct-peer (mesh) members must be deployed together.** Worker nodes
+  regenerate their key and fully rewrite `wg0.conf` on every run, so deploying
+  only one member of a `wireguard_direct_peer_group` leaves its partner pointing
+  a /32 at a node that no longer knows its key — breaking that direction until
+  the partner is redeployed. Deploy the whole group (`--limit=cm4,s2204`) or run
+  a full `just deploy`. Preview first with `-e wireguard_dry_run=true`.
 
 ### Troubleshooting Cluster Issues
 

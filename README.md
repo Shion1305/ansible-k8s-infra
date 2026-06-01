@@ -134,7 +134,9 @@ ansible-k8s-wireguard/
 
 ### 🚀 **Performance Optimized**
 
-- Local network traffic between cm4 ↔ s2204 (~0.5ms)
+- Direct same-site WireGuard peering: cm4 ↔ s2204 talk over the LAN (~0.5ms)
+  instead of relaying through the control plane in the cloud (~16ms + egress).
+  Enabled via a shared `wireguard_direct_peer_group` in the inventory.
 - WireGuard tunnels for secure cross-site communication (~8ms)
 - Proper CNI plugin installation prevents CoreDNS issues
 

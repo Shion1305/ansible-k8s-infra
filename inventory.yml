@@ -30,6 +30,15 @@ all:
           wireguard_interface: wg0
           cni_version: v1.3.0
           has_ufw: true
+          # Direct (mesh) peering: nodes sharing a non-empty group establish a
+          # WireGuard tunnel directly with each other so same-site traffic never
+          # relays through the control plane. See `wireguard_direct_peer_group`.
+          wireguard_direct_peer_group: home
+          # cm4's address on the shared home LAN, advertised to same-group peers
+          # as the direct-tunnel endpoint. Set explicitly (instead of relying on
+          # the auto-detected default-route IP); pin via DHCP reservation so it
+          # stays stable across reboots.
+          wireguard_lan_endpoint: "192.168.40.34"
           # 4 vCPU / 8Gi: light reservation
           kubelet_kube_reserved: "cpu=250m,memory=512Mi"
           kubelet_system_reserved: "cpu=250m,memory=512Mi"
@@ -45,6 +54,10 @@ all:
           wireguard_interface: wg0
           cni_version: v1.3.0
           has_ufw: true
+          # Same home LAN as cm4 -> they peer directly (see cm4 for details).
+          wireguard_direct_peer_group: home
+          # s2204's address on the shared home LAN (direct-tunnel endpoint).
+          wireguard_lan_endpoint: "192.168.40.32"
           # 20 vCPU / 32Gi: reservation already applied on this node
           kubelet_kube_reserved: "cpu=500m,memory=1Gi"
           kubelet_system_reserved: "cpu=500m,memory=1Gi"
@@ -84,6 +97,15 @@ all:
 
     # WireGuard network
     wireguard_network: "10.130.5.0/24"
+    # Default UDP listen port. The control plane overrides per-host (same value);
+    # direct-peer members need it too so same-site peers can reach them.
+    wireguard_port: 51820
+    # Direct (mesh) peering group. Empty => hub-only (all traffic via control
+    # plane). Nodes sharing the same non-empty value build direct tunnels with
+    # each other in ADDITION to the control-plane hub. Override per host above.
+    # Direct /32 peer routes are more specific than the hub's /24, so same-site
+    # traffic bypasses the control plane while everything else still uses the hub.
+    wireguard_direct_peer_group: ""
 
     # WireGuard overlay addressing plan. Every host and static peer MUST declare a
     # `wireguard_zone`; the IP it is assigned MUST fall inside that zone's CIDR.

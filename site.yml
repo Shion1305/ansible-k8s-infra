@@ -270,6 +270,19 @@
             proto: tcp
             comment: "Kubernetes NodePort services"
 
+        # Direct-peer members listen on the WireGuard UDP port so same-site peers
+        # can establish a tunnel directly (the wg0-interface rules below only
+        # govern traffic INSIDE the tunnel, not the underlay handshake socket).
+        # WireGuard never replies to unauthenticated packets, so exposing the
+        # port is low risk; the control-plane hub already opens it the same way.
+        - name: Allow WireGuard UDP port for direct same-site peers
+          community.general.ufw:
+            rule: allow
+            port: "{{ wireguard_port }}"
+            proto: udp
+            comment: "WireGuard direct peer (same-site mesh)"
+          when: (wireguard_direct_peer_group | default('')) != ''
+
         - name: Allow WireGuard interface input
           community.general.ufw:
             rule: allow

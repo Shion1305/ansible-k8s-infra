@@ -67,6 +67,43 @@
         msg: "{{ ping_result.stdout_lines }}"
       when: inventory_hostname not in groups['control_plane'] and ping_result is defined
 
+    # Direct same-site peers: confirm traffic takes the LAN path (sub-millisecond
+    # latency) instead of relaying through the control plane (~16ms round-trip).
+    - name: Determine same-site direct peers
+      ansible.builtin.set_fact:
+        wg_direct_peers: >-
+          {{
+            groups['all']
+            | map('extract', hostvars)
+            | selectattr('wireguard_direct_peer_group', 'defined')
+            | selectattr('wireguard_direct_peer_group', 'equalto', wireguard_direct_peer_group)
+            | selectattr('wireguard_ip', 'defined')
+            | map(attribute='inventory_hostname')
+            | reject('equalto', inventory_hostname) | sort | list
+          }}
+      when: (wireguard_direct_peer_group | default('')) != ''
+
+    - name: Test direct WireGuard connectivity to same-site peers
+      ansible.builtin.command: ping -c 3 {{ hostvars[item]['wireguard_ip'] }}
+      register: wg_direct_ping
+      changed_when: false
+      failed_when: false
+      loop: "{{ wg_direct_peers | default([]) }}"
+      loop_control:
+        label: "{{ item }} ({{ hostvars[item]['wireguard_ip'] }})"
+
+    - name: Display direct-peer ping results
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.item }} ->
+          {{ ('OK ' ~ (item.stdout_lines | select('search', 'rtt|time=') | list))
+             if item.rc == 0
+             else ('UNREACHABLE (rc=' ~ item.rc ~ ') -- direct LAN path down, NOT failing over to hub') }}
+      loop: "{{ wg_direct_ping.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: wg_direct_ping.results | default([]) | length > 0
+
 - name: Cluster Health Check
   hosts: control_plane
   become: false
