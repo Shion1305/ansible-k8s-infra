@@ -74,12 +74,12 @@
         wg_direct_peers: >-
           {{
             groups['all']
-            | difference([inventory_hostname])
             | map('extract', hostvars)
             | selectattr('wireguard_direct_peer_group', 'defined')
             | selectattr('wireguard_direct_peer_group', 'equalto', wireguard_direct_peer_group)
+            | selectattr('wireguard_ip', 'defined')
             | map(attribute='inventory_hostname')
-            | list
+            | reject('equalto', inventory_hostname) | sort | list
           }}
       when: (wireguard_direct_peer_group | default('')) != ''
 
@@ -94,11 +94,15 @@
 
     - name: Display direct-peer ping results
       ansible.builtin.debug:
-        msg: "{{ item.item }} -> {{ item.stdout_lines | select('search', 'rtt|time=') | list }}"
+        msg: >-
+          {{ item.item }} ->
+          {{ ('OK ' ~ (item.stdout_lines | select('search', 'rtt|time=') | list))
+             if item.rc == 0
+             else ('UNREACHABLE (rc=' ~ item.rc ~ ') -- direct LAN path down, NOT failing over to hub') }}
       loop: "{{ wg_direct_ping.results | default([]) }}"
       loop_control:
         label: "{{ item.item }}"
-      when: wg_direct_ping is defined and wg_direct_ping.results is defined
+      when: wg_direct_ping.results | default([]) | length > 0
 
 - name: Cluster Health Check
   hosts: control_plane

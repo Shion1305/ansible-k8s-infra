@@ -180,7 +180,9 @@ workers talk directly, set a shared **`wireguard_direct_peer_group`** on them in
   overlay destination still matches the /24 and uses the hub.
 - The endpoint defaults to the peer's `ansible_default_ipv4` (its LAN IP);
   override per host with `wireguard_lan_endpoint`. Pin LAN IPs via DHCP
-  reservation so the static endpoint stays valid.
+  reservation so the static endpoint stays valid. A member whose endpoint can't
+  be resolved (no override and no gathered `ansible_default_ipv4`) is skipped —
+  it stays reachable via the hub instead of failing the whole render.
 - Direct-peer members also get a `ListenPort` and a UFW `udp/{{ wireguard_port }}`
   allow rule (added automatically when the group is non-empty).
 - **Caveat:** because /32 beats /24, the direct path does **not** fail over to

@@ -381,6 +381,387 @@ PersistentKeepalive = 25
 """,
         ),
         (
+            "direct-peer wireguard_lan_endpoint overrides ansible_default_ipv4",
+            {
+                'inventory_hostname': 'test-worker-1',
+                'groups': {
+                    'control_plane': ['test-control'],
+                    'workers': ['test-worker-1', 'test-worker-2'],
+                    'all': ['test-control', 'test-worker-1', 'test-worker-2'],
+                },
+                'wireguard_ip': '10.130.5.3',
+                'wireguard_port': 51820,
+                'wireguard_private_key': 'wDUMMYworker1privateKEY123456abcdefGHIJKLM=',
+                'wireguard_public_key': 'wDUMMYworker1publicKEY123456abcdefGHIJKLMN=',
+                'wireguard_network': '10.130.5.0/24',
+                'wireguard_direct_peer_group': 'home',
+                'hostvars': {
+                    'test-control': {
+                        'inventory_hostname': 'test-control',
+                        'wireguard_direct_peer_group': '',
+                        'wireguard_public_key': 'hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=',
+                        'ansible_host': 'test-control-plane.example.com',
+                        'wireguard_port': 51820,
+                    },
+                    'test-worker-1': {
+                        'inventory_hostname': 'test-worker-1',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker1publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.3',
+                        'wireguard_port': 51820,
+                        'ansible_default_ipv4': {'address': '192.168.1.3'},
+                    },
+                    'test-worker-2': {
+                        'inventory_hostname': 'test-worker-2',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker2publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.4',
+                        'wireguard_port': 51820,
+                        'wireguard_lan_endpoint': '10.99.99.4',
+                        'ansible_default_ipv4': {'address': '192.168.1.4'},
+                    },
+                },
+            },
+            """[Interface]
+Address = 10.130.5.3/24
+ListenPort = 51820
+PrivateKey = wDUMMYworker1privateKEY123456abcdefGHIJKLM=
+# PublicKey = wDUMMYworker1publicKEY123456abcdefGHIJKLMN=
+
+# Control plane (hub): catch-all /24 route. Anything without a more specific
+# direct-peer route below is relayed through the control plane.
+[Peer]
+PublicKey = hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=
+Endpoint = root.test-control-plane.example.com:51820
+AllowedIPs = 10.130.5.0/24
+PersistentKeepalive = 25
+
+# Direct same-site peers. Each advertises a /32 AllowedIPs that is more specific
+# than the hub's /24, so WireGuard's longest-prefix crypto-routing sends traffic
+# for these nodes straight over the LAN instead of relaying via the control plane.
+# NOTE: because /32 wins over /24, the direct path does NOT fail over to the hub
+# if it breaks -- acceptable here since the peers share a LAN.
+[Peer]
+# test-worker-2 (direct LAN peer)
+PublicKey = wDUMMYworker2publicKEY123456abcdefGHIJKLMN=
+AllowedIPs = 10.130.5.4/32
+Endpoint = 10.99.99.4:51820
+PersistentKeepalive = 25
+
+
+""",
+        ),
+        (
+            "direct-peer wireguard_lan_endpoint works without ansible_default_ipv4 fact",
+            {
+                'inventory_hostname': 'test-worker-1',
+                'groups': {
+                    'control_plane': ['test-control'],
+                    'workers': ['test-worker-1', 'test-worker-2'],
+                    'all': ['test-control', 'test-worker-1', 'test-worker-2'],
+                },
+                'wireguard_ip': '10.130.5.3',
+                'wireguard_port': 51820,
+                'wireguard_private_key': 'wDUMMYworker1privateKEY123456abcdefGHIJKLM=',
+                'wireguard_public_key': 'wDUMMYworker1publicKEY123456abcdefGHIJKLMN=',
+                'wireguard_network': '10.130.5.0/24',
+                'wireguard_direct_peer_group': 'home',
+                'hostvars': {
+                    'test-control': {
+                        'inventory_hostname': 'test-control',
+                        'wireguard_direct_peer_group': '',
+                        'wireguard_public_key': 'hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=',
+                        'ansible_host': 'test-control-plane.example.com',
+                        'wireguard_port': 51820,
+                    },
+                    'test-worker-1': {
+                        'inventory_hostname': 'test-worker-1',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker1publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.3',
+                        'wireguard_port': 51820,
+                        'ansible_default_ipv4': {'address': '192.168.1.3'},
+                    },
+                    # No ansible_default_ipv4: the override must still resolve (it
+                    # previously hard-failed because default() eagerly evaluates).
+                    'test-worker-2': {
+                        'inventory_hostname': 'test-worker-2',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker2publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.4',
+                        'wireguard_port': 51820,
+                        'wireguard_lan_endpoint': '10.99.99.4',
+                    },
+                },
+            },
+            """[Interface]
+Address = 10.130.5.3/24
+ListenPort = 51820
+PrivateKey = wDUMMYworker1privateKEY123456abcdefGHIJKLM=
+# PublicKey = wDUMMYworker1publicKEY123456abcdefGHIJKLMN=
+
+# Control plane (hub): catch-all /24 route. Anything without a more specific
+# direct-peer route below is relayed through the control plane.
+[Peer]
+PublicKey = hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=
+Endpoint = root.test-control-plane.example.com:51820
+AllowedIPs = 10.130.5.0/24
+PersistentKeepalive = 25
+
+# Direct same-site peers. Each advertises a /32 AllowedIPs that is more specific
+# than the hub's /24, so WireGuard's longest-prefix crypto-routing sends traffic
+# for these nodes straight over the LAN instead of relaying via the control plane.
+# NOTE: because /32 wins over /24, the direct path does NOT fail over to the hub
+# if it breaks -- acceptable here since the peers share a LAN.
+[Peer]
+# test-worker-2 (direct LAN peer)
+PublicKey = wDUMMYworker2publicKEY123456abcdefGHIJKLMN=
+AllowedIPs = 10.130.5.4/32
+Endpoint = 10.99.99.4:51820
+PersistentKeepalive = 25
+
+
+""",
+        ),
+        (
+            "direct-peer group sorts 3+ members and skips a peer with no resolvable endpoint",
+            {
+                'inventory_hostname': 'test-worker-1',
+                'groups': {
+                    'control_plane': ['test-control'],
+                    'workers': ['test-worker-1', 'test-worker-2', 'test-worker-3', 'test-worker-4'],
+                    'all': ['test-control', 'test-worker-1', 'test-worker-2', 'test-worker-3', 'test-worker-4'],
+                },
+                'wireguard_ip': '10.130.5.3',
+                'wireguard_port': 51820,
+                'wireguard_private_key': 'wDUMMYworker1privateKEY123456abcdefGHIJKLM=',
+                'wireguard_public_key': 'wDUMMYworker1publicKEY123456abcdefGHIJKLMN=',
+                'wireguard_network': '10.130.5.0/24',
+                'wireguard_direct_peer_group': 'home',
+                'hostvars': {
+                    'test-control': {
+                        'inventory_hostname': 'test-control',
+                        'wireguard_direct_peer_group': '',
+                        'wireguard_public_key': 'hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=',
+                        'ansible_host': 'test-control-plane.example.com',
+                        'wireguard_port': 51820,
+                    },
+                    'test-worker-1': {
+                        'inventory_hostname': 'test-worker-1',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker1publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.3',
+                        'wireguard_port': 51820,
+                        'ansible_default_ipv4': {'address': '192.168.1.3'},
+                    },
+                    # Deliberately out of alphabetical order to exercise `| sort`.
+                    'test-worker-4': {
+                        'inventory_hostname': 'test-worker-4',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker4publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.6',
+                        'wireguard_port': 51820,
+                        'ansible_default_ipv4': {'address': '192.168.1.6'},
+                    },
+                    # No endpoint (no override, no fact) -> omitted, stays on hub.
+                    'test-worker-3': {
+                        'inventory_hostname': 'test-worker-3',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker3publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.5',
+                        'wireguard_port': 51820,
+                    },
+                    'test-worker-2': {
+                        'inventory_hostname': 'test-worker-2',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker2publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.4',
+                        'wireguard_port': 51820,
+                        'ansible_default_ipv4': {'address': '192.168.1.4'},
+                    },
+                },
+            },
+            """[Interface]
+Address = 10.130.5.3/24
+ListenPort = 51820
+PrivateKey = wDUMMYworker1privateKEY123456abcdefGHIJKLM=
+# PublicKey = wDUMMYworker1publicKEY123456abcdefGHIJKLMN=
+
+# Control plane (hub): catch-all /24 route. Anything without a more specific
+# direct-peer route below is relayed through the control plane.
+[Peer]
+PublicKey = hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=
+Endpoint = root.test-control-plane.example.com:51820
+AllowedIPs = 10.130.5.0/24
+PersistentKeepalive = 25
+
+# Direct same-site peers. Each advertises a /32 AllowedIPs that is more specific
+# than the hub's /24, so WireGuard's longest-prefix crypto-routing sends traffic
+# for these nodes straight over the LAN instead of relaying via the control plane.
+# NOTE: because /32 wins over /24, the direct path does NOT fail over to the hub
+# if it breaks -- acceptable here since the peers share a LAN.
+[Peer]
+# test-worker-2 (direct LAN peer)
+PublicKey = wDUMMYworker2publicKEY123456abcdefGHIJKLMN=
+AllowedIPs = 10.130.5.4/32
+Endpoint = 192.168.1.4:51820
+PersistentKeepalive = 25
+
+[Peer]
+# test-worker-4 (direct LAN peer)
+PublicKey = wDUMMYworker4publicKEY123456abcdefGHIJKLMN=
+AllowedIPs = 10.130.5.6/32
+Endpoint = 192.168.1.6:51820
+PersistentKeepalive = 25
+
+
+""",
+        ),
+        (
+            "direct-peer Endpoint uses each peer's own wireguard_port, falling back to the node's",
+            {
+                'inventory_hostname': 'test-worker-1',
+                'groups': {
+                    'control_plane': ['test-control'],
+                    'workers': ['test-worker-1', 'test-worker-2', 'test-worker-3'],
+                    'all': ['test-control', 'test-worker-1', 'test-worker-2', 'test-worker-3'],
+                },
+                'wireguard_ip': '10.130.5.3',
+                'wireguard_port': 51820,
+                'wireguard_private_key': 'wDUMMYworker1privateKEY123456abcdefGHIJKLM=',
+                'wireguard_public_key': 'wDUMMYworker1publicKEY123456abcdefGHIJKLMN=',
+                'wireguard_network': '10.130.5.0/24',
+                'wireguard_direct_peer_group': 'home',
+                'hostvars': {
+                    'test-control': {
+                        'inventory_hostname': 'test-control',
+                        'wireguard_direct_peer_group': '',
+                        'wireguard_public_key': 'hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=',
+                        'ansible_host': 'test-control-plane.example.com',
+                        'wireguard_port': 51820,
+                    },
+                    'test-worker-1': {
+                        'inventory_hostname': 'test-worker-1',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker1publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.3',
+                        'wireguard_port': 51820,
+                        'ansible_default_ipv4': {'address': '192.168.1.3'},
+                    },
+                    # Explicit non-default port.
+                    'test-worker-2': {
+                        'inventory_hostname': 'test-worker-2',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker2publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.4',
+                        'wireguard_port': 52000,
+                        'ansible_default_ipv4': {'address': '192.168.1.4'},
+                    },
+                    # No wireguard_port -> falls back to the rendering node's 51820.
+                    'test-worker-3': {
+                        'inventory_hostname': 'test-worker-3',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker3publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.5',
+                        'ansible_default_ipv4': {'address': '192.168.1.5'},
+                    },
+                },
+            },
+            """[Interface]
+Address = 10.130.5.3/24
+ListenPort = 51820
+PrivateKey = wDUMMYworker1privateKEY123456abcdefGHIJKLM=
+# PublicKey = wDUMMYworker1publicKEY123456abcdefGHIJKLMN=
+
+# Control plane (hub): catch-all /24 route. Anything without a more specific
+# direct-peer route below is relayed through the control plane.
+[Peer]
+PublicKey = hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=
+Endpoint = root.test-control-plane.example.com:51820
+AllowedIPs = 10.130.5.0/24
+PersistentKeepalive = 25
+
+# Direct same-site peers. Each advertises a /32 AllowedIPs that is more specific
+# than the hub's /24, so WireGuard's longest-prefix crypto-routing sends traffic
+# for these nodes straight over the LAN instead of relaying via the control plane.
+# NOTE: because /32 wins over /24, the direct path does NOT fail over to the hub
+# if it breaks -- acceptable here since the peers share a LAN.
+[Peer]
+# test-worker-2 (direct LAN peer)
+PublicKey = wDUMMYworker2publicKEY123456abcdefGHIJKLMN=
+AllowedIPs = 10.130.5.4/32
+Endpoint = 192.168.1.4:52000
+PersistentKeepalive = 25
+
+[Peer]
+# test-worker-3 (direct LAN peer)
+PublicKey = wDUMMYworker3publicKEY123456abcdefGHIJKLMN=
+AllowedIPs = 10.130.5.5/32
+Endpoint = 192.168.1.5:51820
+PersistentKeepalive = 25
+
+
+""",
+        ),
+        (
+            "direct-peer group with a single member renders no direct section (only ListenPort)",
+            {
+                'inventory_hostname': 'test-worker-1',
+                'groups': {
+                    'control_plane': ['test-control'],
+                    'workers': ['test-worker-1', 'test-worker-2'],
+                    'all': ['test-control', 'test-worker-1', 'test-worker-2'],
+                },
+                'wireguard_ip': '10.130.5.3',
+                'wireguard_port': 51820,
+                'wireguard_private_key': 'wDUMMYworker1privateKEY123456abcdefGHIJKLM=',
+                'wireguard_public_key': 'wDUMMYworker1publicKEY123456abcdefGHIJKLMN=',
+                'wireguard_network': '10.130.5.0/24',
+                'wireguard_direct_peer_group': 'home',
+                'hostvars': {
+                    'test-control': {
+                        'inventory_hostname': 'test-control',
+                        'wireguard_direct_peer_group': '',
+                        'wireguard_public_key': 'hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=',
+                        'ansible_host': 'test-control-plane.example.com',
+                        'wireguard_port': 51820,
+                    },
+                    'test-worker-1': {
+                        'inventory_hostname': 'test-worker-1',
+                        'wireguard_direct_peer_group': 'home',
+                        'wireguard_public_key': 'wDUMMYworker1publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.3',
+                        'wireguard_port': 51820,
+                        'ansible_default_ipv4': {'address': '192.168.1.3'},
+                    },
+                    # Different group -> test-worker-1 is the only "home" member.
+                    'test-worker-2': {
+                        'inventory_hostname': 'test-worker-2',
+                        'wireguard_direct_peer_group': 'office',
+                        'wireguard_public_key': 'wDUMMYworker2publicKEY123456abcdefGHIJKLMN=',
+                        'wireguard_ip': '10.130.5.4',
+                        'wireguard_port': 51820,
+                        'ansible_default_ipv4': {'address': '192.168.1.4'},
+                    },
+                },
+            },
+            """[Interface]
+Address = 10.130.5.3/24
+ListenPort = 51820
+PrivateKey = wDUMMYworker1privateKEY123456abcdefGHIJKLM=
+# PublicKey = wDUMMYworker1publicKEY123456abcdefGHIJKLMN=
+
+# Control plane (hub): catch-all /24 route. Anything without a more specific
+# direct-peer route below is relayed through the control plane.
+[Peer]
+PublicKey = hDUMMYctrlplaneKEY4444444abcdefGHIJKLMNOPQ=
+Endpoint = root.test-control-plane.example.com:51820
+AllowedIPs = 10.130.5.0/24
+PersistentKeepalive = 25
+
+""",
+        ),
+        (
             "control plane with no workers - empty config",
             {
                 'inventory_hostname': 'test-control',
