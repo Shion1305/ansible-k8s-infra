@@ -154,6 +154,11 @@ all:
         allowed_ips: "10.130.5.145/32"
         zone: external-mobile
 
+      oki-mac:
+        public_key: "tO8SOnoDpqWL/JMjanivoP4hb101MGYBJ7FXeqTaIhk="
+        allowed_ips: "10.130.5.146/32"
+        zone: external-mobile
+
     # Control plane endpoint
     control_plane_endpoint: "k8s.shion1305.com:6443"
     apiserver_advertise_address: "10.130.5.1"
