@@ -149,6 +149,11 @@ all:
         allowed_ips: "10.130.5.97/32"
         zone: owned-mobile
 
+      iphone-17-pro:
+        public_key: "Jq57VYd5Lb2Tijsq37P3prARi0wHgAEtlZ9Nh7nsTQ0="
+        allowed_ips: "10.130.5.98/32"
+        zone: owned-mobile
+
       tomoya-mac:
         public_key: "+6KaWGZ4ePBZPhQJhGrMK4qU837OzXvNe86nntx1kno="
         allowed_ips: "10.130.5.145/32"
@@ -157,6 +162,11 @@ all:
       oki-mac:
         public_key: "tO8SOnoDpqWL/JMjanivoP4hb101MGYBJ7FXeqTaIhk="
         allowed_ips: "10.130.5.146/32"
+        zone: external-mobile
+
+      shun-mac:
+        public_key: "3t3rclENLeKHoWgq70X6mbhzfYd+8Xnn/epBWkPchFs="
+        allowed_ips: "10.130.5.147/32"
         zone: external-mobile
 
     # Control plane endpoint
