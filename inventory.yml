@@ -159,11 +159,6 @@ all:
         allowed_ips: "10.130.5.145/32"
         zone: external-mobile
 
-      oki-mac:
-        public_key: "tO8SOnoDpqWL/JMjanivoP4hb101MGYBJ7FXeqTaIhk="
-        allowed_ips: "10.130.5.146/32"
-        zone: external-mobile
-
       shun-mac:
         public_key: "3t3rclENLeKHoWgq70X6mbhzfYd+8Xnn/epBWkPchFs="
         allowed_ips: "10.130.5.147/32"
