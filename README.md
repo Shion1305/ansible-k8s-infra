@@ -209,9 +209,6 @@ ansible-playbook -i inventory.yml reset.yml
 # Only configure/reconfigure WireGuard
 ansible-playbook -i inventory.yml site.yml --tags=wireguard
 
-# Regenerate WireGuard keys/configs via Makefile helper
-make reconfigure-wireguard
-
 # Only join worker nodes
 ansible-playbook -i inventory.yml site.yml --limit=workers
 
