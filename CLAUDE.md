@@ -270,14 +270,19 @@ GitHub Actions (`.github/workflows/ansible-lint.yml`):
 ### Modifying WireGuard Configuration
 
 - Edit `roles/wireguard/templates/wg0.conf.j2`
-- Key generation is automatic from inventory variables
-- Test with `just deploy <host>` on a single node first
-- **Direct-peer (mesh) members must be deployed together.** Worker nodes
-  regenerate their key and fully rewrite `wg0.conf` on every run, so deploying
-  only one member of a `wireguard_direct_peer_group` leaves its partner pointing
-  a /32 at a node that no longer knows its key — breaking that direction until
-  the partner is redeployed. Deploy the whole group (`--limit=cm4,s2204`) or run
-  a full `just deploy`. Preview first with `-e wireguard_dry_run=true`.
+- Keys are generated **once per host** and persisted to
+  `/etc/wireguard/<if>.key` + `<if>.pub` by `roles/wireguard/tasks/ensure_keys.yml`,
+  then loaded into facts on every run. Because the facts come from stable on-disk
+  files, `wg0.conf` renders byte-identically on a steady-state deploy — the config
+  task reports `ok` and the tunnel is **not** restarted. On the first run against
+  an already-deployed host the existing `PrivateKey` is migrated out of `wg0.conf`
+  into the key file, so no key changes and no restart happens.
+- Test with `just deploy <host>` on a single node first. Single-member deploys of a
+  `wireguard_direct_peer_group` are now **safe** — a member's key no longer changes
+  on redeploy, so its partners keep working. (Force-rotate all keys with
+  `just deploy-regen` / `-e wireguard_regenerate_keys=true`; rotating the
+  control-plane key still breaks every peer until they are redeployed.)
+- Preview first with `-e wireguard_dry_run=true`.
 
 ### Troubleshooting Cluster Issues
 
