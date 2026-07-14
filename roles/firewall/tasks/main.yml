@@ -1,0 +1,67 @@
+---
+# Host firewall (UFW). Rules are driven by the port lists in group_vars/all.yml
+# (kubernetes_control_plane_ports / kubernetes_worker_ports) so the policy lives
+# in one reviewable place instead of ~10 near-identical inline tasks.
+
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    lock_timeout: "{{ apt_lock_timeout | default(300) }}"
+
+- name: Allow SSH access
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    comment: "SSH access"
+
+- name: Allow control-plane Kubernetes ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+    comment: "{{ item.comment }}"
+  loop: "{{ kubernetes_control_plane_ports }}"
+  loop_control:
+    label: "{{ item.comment }} ({{ item.port }}/{{ item.proto | default('tcp') }})"
+  when: inventory_hostname in groups['control_plane']
+
+- name: Allow worker Kubernetes ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+    comment: "{{ item.comment }}"
+  loop: "{{ kubernetes_worker_ports }}"
+  loop_control:
+    label: "{{ item.comment }} ({{ item.port }}/{{ item.proto | default('tcp') }})"
+  when: inventory_hostname in groups['workers']
+
+# WireGuard underlay (handshake) port. The control-plane hub always listens;
+# workers only need it exposed when they are direct same-site mesh peers.
+- name: Allow WireGuard UDP underlay port
+  community.general.ufw:
+    rule: allow
+    port: "{{ wireguard_port }}"
+    proto: udp
+    comment: "WireGuard VPN"
+  when: >-
+    inventory_hostname in groups['control_plane']
+    or (wireguard_direct_peer_group | default('')) != ''
+
+- name: Allow WireGuard interface traffic (in/out)
+  community.general.ufw:
+    rule: allow
+    direction: "{{ item }}"
+    interface: "{{ wireguard_interface }}"
+    comment: "WireGuard interface {{ item }}"
+  loop:
+    - in
+    - out
+
+- name: Enable UFW firewall
+  community.general.ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
