@@ -28,10 +28,28 @@
       loop_control:
         label: "{{ item.path }}"
 
+    # Unattended-upgrades / apt-daily timers hold the dpkg lock on these hosts.
+    # Wait for it to clear (fuser returns rc=0 while held) so the apt tasks below
+    # don't fail outright. Degrades gracefully to "no wait" if fuser is absent.
+    - name: Wait for the apt/dpkg lock to be released
+      ansible.builtin.shell: fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1
+      register: site_dpkg_lock
+      until: site_dpkg_lock.rc != 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == "Debian"
+
     - name: Update apt cache (Debian/Ubuntu)
       ansible.builtin.apt:
         update_cache: true
         cache_valid_time: 3600
+        lock_timeout: "{{ apt_lock_timeout | default(300) }}"
+      register: site_apt_cache
+      until: site_apt_cache is succeeded
+      retries: 3
+      delay: 10
       when: ansible_os_family == "Debian" # Ubuntu is part of Debian family
 
     - name: Ensure required directories exist
