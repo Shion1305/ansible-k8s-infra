@@ -77,9 +77,7 @@
     backup: true
   register: kubernetes_containerd_config_written
   changed_when: kubernetes_containerd_config_written.diff | default([]) | length > 0
-  notify:
-    - Prompt for containerd restart
-    - Restart containerd
+  notify: Restart containerd
 
 - name: Install Kubernetes packages
   ansible.builtin.apt:
