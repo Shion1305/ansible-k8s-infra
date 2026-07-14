@@ -1,0 +1,15 @@
+---
+# ansible-lint configuration.
+# The repo currently meets the strictest built-in profile ("production");
+# pin it so CI keeps that bar and future changes can't silently regress.
+profile: production
+
+exclude_paths:
+  - .venv/
+  - .ansible/
+  - .idea/
+  - tests/          # pytest suite (Python), not Ansible content
+
+# No skip_list / warn_list on purpose: the tree passes production clean.
+# Add an entry here (with a comment explaining why) only for a rule that a
+# deliberate, reviewed exception requires — never to paper over a real smell.

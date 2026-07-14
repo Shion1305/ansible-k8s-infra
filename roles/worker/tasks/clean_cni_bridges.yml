@@ -1,0 +1,19 @@
+---
+# Remove legacy/conflicting CNI bridge interfaces left over from a previous CNI
+# (flannel/docker/etc). Cilium recreates whatever it needs. Idempotent: only
+# bridges that currently exist are deleted, so a clean node reports no change.
+# Override the list with `worker_cni_conflicting_bridges` (see the role defaults).
+#
+# Shared task file — included from site.yml, maintenance.yml, troubleshoot.yml,
+# reset.yml and the worker role so the bridge list lives in exactly one place.
+- name: List current network interfaces (to gate bridge removal)
+  ansible.builtin.command: ip -o link show
+  register: worker_cni_current_links
+  changed_when: false
+
+- name: Remove conflicting CNI bridge interfaces
+  ansible.builtin.command: "ip link delete {{ item }}"
+  loop: "{{ worker_cni_conflicting_bridges | default(['cni0', 'docker0', 'flannel.1']) }}"
+  when: item in worker_cni_current_links.stdout
+  changed_when: true
+  failed_when: false

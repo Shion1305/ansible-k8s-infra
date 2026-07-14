@@ -62,17 +62,7 @@
         msg: "{{ cni_bridges.stdout_lines }}"
 
     - name: Clean up old CNI interfaces if they exist
-      ansible.builtin.shell: |
-        for bridge in cni0 docker0 flannel.1; do
-          if ip link show $bridge >/dev/null 2>&1; then
-            echo "Removing bridge: $bridge"
-            ip link delete $bridge
-          fi
-        done
-      register: troubleshoot_bridge_cleanup
-      changed_when: "'Removing bridge:' in troubleshoot_bridge_cleanup.stdout"
-      failed_when: false
-      when: "'cni0' in cni_bridges.stdout or 'docker0' in cni_bridges.stdout"
+      ansible.builtin.include_tasks: roles/worker/tasks/clean_cni_bridges.yml
 
     - name: Restart kubelet if needed
       ansible.builtin.systemd:

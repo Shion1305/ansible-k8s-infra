@@ -1,12 +1,12 @@
 ---
 # Reset Kubernetes Cluster
 # WARNING: This will completely destroy the existing cluster!
-
-- name: Reset Kubernetes Control Plane
-  hosts: control_plane
-  become: true
-  gather_facts: false
-  serial: 1
+#
+# NOTE: this playbook resets the WORKER nodes only. The control plane is left
+# untouched on purpose -- wiping its etcd/PKI is irreversible and re-bootstrapping
+# it is a deliberate, separate operation, so it is kept manual. (A previous
+# "Reset Kubernetes Control Plane" play here had no tasks and did nothing; it was
+# removed so the playbook no longer implies it resets the control plane.)
 
 - name: Reset Kubernetes Worker Nodes (Concurrent)
   hosts: workers
@@ -39,16 +39,7 @@
       failed_when: false
 
     - name: Remove CNI bridge interfaces
-      ansible.builtin.shell: |
-        for bridge in cni0 docker0 flannel.1; do
-          if ip link show $bridge >/dev/null 2>&1; then
-            echo "Removing bridge: $bridge"
-            ip link delete $bridge
-          fi
-        done
-      register: bridge_removal_reset
-      changed_when: "'Removing bridge:' in bridge_removal_reset.stdout"
-      failed_when: false
+      ansible.builtin.include_tasks: roles/worker/tasks/clean_cni_bridges.yml
 
     - name: Remove WireGuard configuration
       ansible.builtin.file:
@@ -73,6 +64,7 @@
         state: absent
         autoremove: true
         purge: true
+        lock_timeout: "{{ apt_lock_timeout | default(300) }}"
       failed_when: false
 
     - name: Remove containerd and dependencies
@@ -85,6 +77,7 @@
         state: absent
         autoremove: true
         purge: true
+        lock_timeout: "{{ apt_lock_timeout | default(300) }}"
       failed_when: false
 
     - name: Remove WireGuard

@@ -28,10 +28,28 @@
       loop_control:
         label: "{{ item.path }}"
 
+    # Unattended-upgrades / apt-daily timers hold the dpkg lock on these hosts.
+    # Wait for it to clear (fuser returns rc=0 while held) so the apt tasks below
+    # don't fail outright. Degrades gracefully to "no wait" if fuser is absent.
+    - name: Wait for the apt/dpkg lock to be released
+      ansible.builtin.shell: fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1
+      register: site_dpkg_lock
+      until: site_dpkg_lock.rc != 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == "Debian"
+
     - name: Update apt cache (Debian/Ubuntu)
       ansible.builtin.apt:
         update_cache: true
         cache_valid_time: 3600
+        lock_timeout: "{{ apt_lock_timeout | default(300) }}"
+      register: site_apt_cache
+      until: site_apt_cache is succeeded
+      retries: 3
+      delay: 10
       when: ansible_os_family == "Debian" # Ubuntu is part of Debian family
 
     - name: Ensure required directories exist
@@ -62,73 +80,11 @@
           - wireguard-tools
         state: present
 
-    - name: Check if WireGuard config exists
-      ansible.builtin.stat:
-        path: "/etc/wireguard/{{ wireguard_interface }}.conf"
-      register: wg_config_stat
-
-    - name: Read existing WireGuard configuration
-      ansible.builtin.slurp:
-        src: "/etc/wireguard/{{ wireguard_interface }}.conf"
-      register: wg_config_content
-      when: wg_config_stat.stat.exists
-      no_log: true
-
-    - name: Parse existing WireGuard configuration
-      ansible.builtin.set_fact:
-        wg_config_parsed: "{{ wg_config_content.content | b64decode | parse_wireguard_config }}"
-      when: wg_config_stat.stat.exists
-      no_log: true
-
-    - name: Extract existing keys from config (control plane only)
-      ansible.builtin.set_fact:
-        wireguard_private_key: "{{ wg_config_parsed.interface.privatekey | default('') }}"
-        wireguard_public_key: "{{ wg_config_parsed.interface.public_key | default('') }}"
-      when:
-        - wg_config_stat.stat.exists
-        - not (wireguard_regenerate_keys | default(false) | bool)
-        - inventory_hostname in groups['control_plane']
-        - wg_config_parsed.interface.privatekey is defined
-        - wg_config_parsed.interface.public_key is defined
-      no_log: true
-
-    - name: Generate new WireGuard private key
-      ansible.builtin.command: wg genkey
-      register: private_key
-      changed_when: false
-      no_log: true
-      when: >
-        not wg_config_stat.stat.exists or
-        (wireguard_regenerate_keys | default(false) | bool) or
-        inventory_hostname in groups['workers'] or
-        wireguard_private_key is not defined or
-        wireguard_private_key == ''
-
-    - name: Generate new WireGuard public key
-      ansible.builtin.shell:
-        cmd: set -o pipefail && echo "{{ private_key.stdout }}" | wg pubkey
-      args:
-        executable: /bin/bash
-      register: public_key
-      changed_when: false
-      no_log: true
-      when: private_key is not skipped
-
-    - name: Store newly generated keys in facts
-      ansible.builtin.set_fact:
-        wireguard_private_key: "{{ private_key.stdout }}"
-        wireguard_public_key: "{{ public_key.stdout }}"
-      no_log: true
-      when: private_key is not skipped
-
-    - name: Display key status
-      ansible.builtin.debug:
-        msg: >-
-          {{
-            'Using existing WireGuard keys from config'
-            if (wg_config_stat.stat.exists and not (wireguard_regenerate_keys | default(false) | bool) and inventory_hostname in groups['control_plane'])
-            else 'Generated new WireGuard keys'
-          }}
+    # Generate the keypair once, persist it, and load it into facts. Keys are no
+    # longer regenerated every run, so wg0.conf renders identically on a
+    # steady-state deploy and the tunnel is not restarted needlessly.
+    - name: Ensure a persisted WireGuard keypair exists and load it
+      ansible.builtin.include_tasks: roles/wireguard/tasks/ensure_keys.yml
 
 - name: Configure WireGuard
   hosts: all
@@ -214,16 +170,7 @@
 
   tasks:
     - name: Remove old CNI bridge interfaces that might conflict
-      ansible.builtin.shell: |
-        for bridge in cni0 docker0 flannel.1; do
-          if ip link show $bridge >/dev/null 2>&1; then
-            echo "Removing bridge: $bridge"
-            ip link delete $bridge
-          fi
-        done
-      register: bridge_cleanup_site
-      changed_when: "'Removing bridge:' in bridge_cleanup_site.stdout"
-      failed_when: false
+      ansible.builtin.include_tasks: roles/worker/tasks/clean_cni_bridges.yml
 
 - name: Verify Deployment
   hosts: control_plane

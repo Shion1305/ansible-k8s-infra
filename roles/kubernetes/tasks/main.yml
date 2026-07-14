@@ -23,17 +23,34 @@
     owner: root
     group: root
 
+# apt_repository has no lock_timeout, so don't let it refresh the cache (that is
+# the step that collides with unattended-upgrades). Add the repo only, then run a
+# dedicated lock-tolerant cache update below.
 - name: Add Kubernetes APT repository with signed-by
   ansible.builtin.apt_repository:
     repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/{{ kubernetes_apt_channel }}/deb/ /"
     filename: kubernetes
     state: present
+    update_cache: false
+  register: kubernetes_apt_repo
+  until: kubernetes_apt_repo is succeeded
+  retries: 3
+  delay: 10
+
+- name: Refresh apt cache after adding the Kubernetes repository
+  ansible.builtin.apt:
     update_cache: true
+    lock_timeout: "{{ apt_lock_timeout | default(300) }}"
+  register: kubernetes_apt_cache
+  until: kubernetes_apt_cache is succeeded
+  retries: 3
+  delay: 10
 
 - name: Install containerd
-  ansible.builtin.package:
+  ansible.builtin.apt:
     name: containerd
     state: present
+    lock_timeout: "{{ apt_lock_timeout | default(300) }}"
 
 - name: Create containerd configuration directory
   ansible.builtin.file:
@@ -60,17 +77,16 @@
     backup: true
   register: kubernetes_containerd_config_written
   changed_when: kubernetes_containerd_config_written.diff | default([]) | length > 0
-  notify:
-    - Prompt for containerd restart
-    - Restart containerd
+  notify: Restart containerd
 
 - name: Install Kubernetes packages
-  ansible.builtin.package:
+  ansible.builtin.apt:
     name:
       - kubelet={{ kubernetes_version }}
       - kubeadm={{ kubernetes_version }}
       - kubectl={{ kubernetes_version }}
     state: present
+    lock_timeout: "{{ apt_lock_timeout | default(300) }}"
 
 - name: Hold Kubernetes packages
   ansible.builtin.dpkg_selections:

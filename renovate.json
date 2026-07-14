@@ -1,0 +1,101 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate config for ansible-k8s-wireguard. Tracks Kubernetes, CNI plugins, aqua-managed CLIs, GitHub Actions and Python dev deps. See inventory.yml / aqua.yaml for where each version lives.",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommitsDisabled"
+  ],
+  "timezone": "Asia/Tokyo",
+  "schedule": ["before 9am on monday"],
+  "labels": ["dependencies", "renovate"],
+  "commitMessagePrefix": "⬆️",
+  "minimumReleaseAge": "5 days",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Kubernetes package version (inventory.yml). Rewrites only the upstream X.Y.Z; the Debian package revision suffix (e.g. -1.1) is preserved verbatim because apt install needs an exact version string.",
+      "fileMatch": ["^inventory\\.yml$"],
+      "matchStrings": [
+        "kubernetes_version:\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)-[\\d.]+\""
+      ],
+      "depNameTemplate": "kubernetes/kubernetes",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "CNI plugins release tag (inventory.yml). Keeps the leading v (used verbatim in the download URL).",
+      "fileMatch": ["^inventory\\.yml$"],
+      "matchStrings": [
+        "cni_version:\\s*(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "containernetworking/plugins",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "aqua.yaml: registry ref (annotated with # renovate: depName=...) and owner/repo@version packages.",
+      "fileMatch": ["^aqua\\.yaml$"],
+      "matchStrings": [
+        "ref:\\s*(?<currentValue>\\S+)\\s*#\\s*renovate:\\s*depName=(?<depName>\\S+)",
+        "-\\s*name:\\s*(?<depName>[^@\\s]+)@(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Kubernetes: group + require manual review, soak 7 days.",
+      "matchPackageNames": ["kubernetes/kubernetes"],
+      "groupName": "kubernetes",
+      "addLabels": ["kubernetes", "needs-review"],
+      "minimumReleaseAge": "7 days",
+      "automerge": false
+    },
+    {
+      "description": "Kubernetes: only propose PATCH bumps automatically. Minor/major change the derived apt channel and are constrained by version-skew rules, so they are done manually (surfaced on the Dependency Dashboard).",
+      "matchPackageNames": ["kubernetes/kubernetes"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
+    },
+    {
+      "description": "CNI plugins: manual review.",
+      "matchPackageNames": ["containernetworking/plugins"],
+      "addLabels": ["cni", "needs-review"],
+      "automerge": false
+    },
+    {
+      "description": "aqua-managed CLIs (uv, just, aqua-registry): group and automerge patch bumps.",
+      "matchFileNames": ["aqua.yaml"],
+      "groupName": "aqua tools",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "GitHub Actions: group and automerge minor/patch/digest after a short soak.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "automerge": true,
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Python dev deps (pyproject.toml): automerge minor/patch after a short soak.",
+      "matchManagers": ["pep621"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "minimumReleaseAge": "5 days"
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "schedule": ["before 9am on the first day of the month"]
+  }
+}
