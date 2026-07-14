@@ -15,16 +15,7 @@
       failed_when: false
 
     - name: Remove CNI bridge interfaces
-      ansible.builtin.shell: |
-        for bridge in cni0 docker0 flannel.1; do
-          if ip link show $bridge >/dev/null 2>&1; then
-            echo "Removing bridge: $bridge"
-            ip link delete $bridge
-          fi
-        done
-      register: bridge_removal
-      changed_when: "'Removing bridge:' in bridge_removal.stdout"
-      failed_when: false
+      ansible.builtin.include_tasks: roles/worker/tasks/clean_cni_bridges.yml
 
     - name: Clear CNI network state
       ansible.builtin.file:

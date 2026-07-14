@@ -1,0 +1,7 @@
+---
+# Legacy CNI bridge interfaces to remove before (re)configuring Cilium.
+# Consumed by roles/worker/tasks/clean_cni_bridges.yml (shared by several playbooks).
+worker_cni_conflicting_bridges:
+  - cni0
+  - docker0
+  - flannel.1

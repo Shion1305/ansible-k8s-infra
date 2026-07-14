@@ -1,0 +1,3 @@
+---
+# WireGuard interface name. Overridden per host in inventory.yml (all use wg0).
+wireguard_interface: wg0
