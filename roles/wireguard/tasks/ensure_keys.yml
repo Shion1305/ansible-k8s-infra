@@ -1,0 +1,91 @@
+---
+# Ensure a *persisted* WireGuard keypair exists on the host, then load it into
+# facts. Keys are generated exactly once and kept in /etc/wireguard/<if>.key
+# (private, 0600) + <if>.pub. Because the facts come from stable on-disk files,
+# the rendered wg0.conf is byte-identical across runs, so the config template no
+# longer reports "changed" and the Restart WireGuard handler stops firing every
+# deploy. See docs/WIREGUARD_INCREMENTAL_UPDATES.md.
+#
+# Requires: wireguard-tools installed (wg genkey / wg pubkey).
+
+- name: Stat persisted WireGuard private key
+  ansible.builtin.stat:
+    path: "/etc/wireguard/{{ wireguard_interface }}.key"
+  register: wireguard_key_stat
+
+- name: Stat existing WireGuard config (for one-time key migration)
+  ansible.builtin.stat:
+    path: "/etc/wireguard/{{ wireguard_interface }}.conf"
+  register: wireguard_conf_stat
+
+# Explicit rotation (`just deploy-regen` / -e wireguard_regenerate_keys=true):
+# drop the persisted pair so the generate steps below recreate it. Rotating the
+# control-plane key breaks every peer until they are redeployed -- unchanged from
+# the previous behaviour of this flag.
+- name: Remove persisted WireGuard keys to force regeneration
+  ansible.builtin.file:
+    path: "/etc/wireguard/{{ wireguard_interface }}.{{ item }}"
+    state: absent
+  loop:
+    - key
+    - pub
+  when: wireguard_regenerate_keys | default(false) | bool
+
+# One-time migration: adopt the private key already live in wg0.conf so the
+# persisted key equals the running tunnel's key. This is what makes the first
+# upgrade run a no-op (no key change -> no config diff -> no restart) on an
+# already-deployed cluster, including the control-plane hub whose key must never
+# change.
+- name: Read live WireGuard config for one-time key migration
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/{{ wireguard_interface }}.conf"
+  register: wireguard_conf_slurp
+  when:
+    - wireguard_conf_stat.stat.exists
+    - not wireguard_key_stat.stat.exists
+    - not (wireguard_regenerate_keys | default(false) | bool)
+  no_log: true
+
+- name: Persist the live WireGuard private key (one-time migration)
+  ansible.builtin.copy:
+    content: "{{ (wireguard_conf_slurp.content | b64decode | parse_wireguard_config).interface.privatekey }}\n"
+    dest: "/etc/wireguard/{{ wireguard_interface }}.key"
+    mode: "0600"
+    owner: root
+    group: root
+  when:
+    - wireguard_conf_stat.stat.exists
+    - not wireguard_key_stat.stat.exists
+    - not (wireguard_regenerate_keys | default(false) | bool)
+    - (wireguard_conf_slurp.content | b64decode | parse_wireguard_config).interface.privatekey is defined
+  no_log: true
+
+# Fresh generation: only runs when there is no key to migrate (new host) or after
+# a forced regeneration. The `creates:` guard makes it genuinely idempotent.
+- name: Generate a new WireGuard private key
+  ansible.builtin.shell:
+    cmd: set -o pipefail && umask 077 && wg genkey > "/etc/wireguard/{{ wireguard_interface }}.key"
+    creates: "/etc/wireguard/{{ wireguard_interface }}.key"
+    executable: /bin/bash
+  no_log: true
+
+- name: Derive the WireGuard public key from the private key
+  ansible.builtin.shell:
+    cmd: set -o pipefail && umask 077 && wg pubkey < "/etc/wireguard/{{ wireguard_interface }}.key" > "/etc/wireguard/{{ wireguard_interface }}.pub"
+    creates: "/etc/wireguard/{{ wireguard_interface }}.pub"
+    executable: /bin/bash
+
+- name: Load the persisted WireGuard keypair into facts
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/{{ wireguard_interface }}.{{ item }}"
+  loop:
+    - key
+    - pub
+  register: wireguard_key_slurp
+  no_log: true
+
+- name: Set WireGuard key facts from persisted files
+  ansible.builtin.set_fact:
+    wireguard_private_key: "{{ wireguard_key_slurp.results[0].content | b64decode | trim }}"
+    wireguard_public_key: "{{ wireguard_key_slurp.results[1].content | b64decode | trim }}"
+  no_log: true
