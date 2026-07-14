@@ -296,8 +296,7 @@ just fix-nodes                              # Restart kubelet and verify
 ## File Structure Summary
 
 ```text
-├── justfile                              # Task automation (use instead of make!)
-├── Makefile                              # Legacy - superseded by justfile
+├── justfile                              # Task automation (single task runner)
 ├── ansible.cfg                           # Ansible configuration
 ├── pyproject.toml                        # Python project config (ansible-lint)
 ├── aqua.yaml                             # CLI tool version management
