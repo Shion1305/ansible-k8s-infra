@@ -1,6 +1,6 @@
 ---
 - name: Install common packages
-  ansible.builtin.package:
+  ansible.builtin.apt:
     name:
       - curl
       - wget
@@ -10,6 +10,7 @@
       - ca-certificates
       - lsb-release
     state: present
+    lock_timeout: "{{ apt_lock_timeout | default(300) }}"
 
 # -----------------------------
 # Swap: disable only if enabled

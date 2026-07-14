@@ -64,6 +64,7 @@
         state: absent
         autoremove: true
         purge: true
+        lock_timeout: "{{ apt_lock_timeout | default(300) }}"
       failed_when: false
 
     - name: Remove containerd and dependencies
@@ -76,6 +77,7 @@
         state: absent
         autoremove: true
         purge: true
+        lock_timeout: "{{ apt_lock_timeout | default(300) }}"
       failed_when: false
 
     - name: Remove WireGuard
