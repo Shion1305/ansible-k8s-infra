@@ -82,6 +82,25 @@ all:
           kubelet_system_reserved: "cpu=500m,memory=1Gi"
           kubelet_eviction_hard: "memory.available<500Mi,nodefs.available<10%,imagefs.available<15%"
 
+        raspi5:
+          ansible_host: raspi5
+          ansible_user: shion
+          ansible_ssh_private_key_file: ~/.ssh/credentials/shion1305
+          wireguard_ip: 10.130.5.68
+          wireguard_zone: home-static
+          architecture: arm64
+          wireguard_interface: wg0
+          cni_version: v1.3.0
+          has_ufw: true
+          # Same home LAN as cm4/s2204/s2605 -> they peer directly (see cm4 for details).
+          wireguard_direct_peer_group: home
+          # raspi5's address on the shared home LAN (direct-tunnel endpoint).
+          wireguard_lan_endpoint: "192.168.40.17"
+          # Raspberry Pi 5, 4 vCPU / 8Gi: light reservation (mirrors cm4)
+          kubelet_kube_reserved: "cpu=250m,memory=512Mi"
+          kubelet_system_reserved: "cpu=250m,memory=512Mi"
+          kubelet_eviction_hard: "memory.available<300Mi,nodefs.available<10%,imagefs.available<15%"
+
         k8s-proxy:
           ansible_host: prox
           ansible_user: ubuntu
