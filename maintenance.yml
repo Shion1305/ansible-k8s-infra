@@ -144,20 +144,49 @@
 
   tasks:
     - name: Update package cache
-      ansible.builtin.package:
+      ansible.builtin.apt:
         update_cache: true
+        cache_valid_time: 3600
+        lock_timeout: "{{ apt_lock_timeout | default(300) }}"
+      register: maintenance_apt_cache
+      until: maintenance_apt_cache is succeeded
+      retries: 3
+      delay: 10
       when: ansible_os_family == "Debian"
 
-    - name: Upgrade Kubernetes packages (hold packages first)
-      ansible.builtin.shell: |
-        apt-mark unhold kubelet kubeadm kubectl
-        apt-get update
-        apt-get install -y kubelet kubeadm kubectl
-        apt-mark hold kubelet kubeadm kubectl
+    - name: Unhold Kubernetes packages before upgrade
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: install
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
       when: ansible_os_family == "Debian"
-      register: apt_upgrade_status
-      changed_when: "'0 upgraded, 0 newly installed' not in apt_upgrade_status.stdout"
-      failed_when: false
+
+    - name: Upgrade Kubernetes packages
+      ansible.builtin.apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: latest # noqa: package-latest - intentional: this task's job is to upgrade
+        lock_timeout: "{{ apt_lock_timeout | default(300) }}"
+      register: maintenance_apt_upgrade
+      until: maintenance_apt_upgrade is succeeded
+      retries: 3
+      delay: 10
+      when: ansible_os_family == "Debian"
+
+    - name: Re-hold Kubernetes packages after upgrade
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+      when: ansible_os_family == "Debian"
 
 - name: Restart Cluster Services
   hosts: all
