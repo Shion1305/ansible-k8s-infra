@@ -1,0 +1,27 @@
+---
+# Cluster-wide variables shared by all hosts.
+#
+# Host topology, the WireGuard addressing plan (wireguard_zones / _network /
+# _static_peers, read directly by tests/test_inventory_zones.py) and the version
+# pins (kubernetes_version / cni_version / containerd_version, targeted by
+# renovate.json) intentionally stay in inventory.yml. This file holds the derived,
+# structured configuration that doesn't belong to a single host.
+
+# Max seconds an apt task waits for the dpkg/apt lock (held periodically by
+# unattended-upgrades / apt-daily) before failing. Consumed by the apt tasks
+# across the playbooks and roles as `apt_lock_timeout | default(300)`.
+apt_lock_timeout: 300
+
+# Firewall allow-rules, consumed by the `firewall` role (roles/firewall). Keeping
+# the Kubernetes port list here removes the hardcoded ports that used to live
+# inline in site.yml's UFW block and makes the policy reviewable in one place.
+kubernetes_control_plane_ports:
+  - { port: "6443", proto: tcp, comment: "Kubernetes API server" }
+  - { port: "2379:2380", proto: tcp, comment: "etcd server client API" }
+  - { port: "10250", proto: tcp, comment: "Kubernetes kubelet" }
+  - { port: "10259", proto: tcp, comment: "kube-scheduler" }
+  - { port: "10257", proto: tcp, comment: "kube-controller-manager" }
+
+kubernetes_worker_ports:
+  - { port: "10250", proto: tcp, comment: "Kubernetes kubelet" }
+  - { port: "30000:32767", proto: tcp, comment: "Kubernetes NodePort services" }
