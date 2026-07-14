@@ -12,7 +12,6 @@ all:
           architecture: arm64
           wireguard_interface: wg0
           wireguard_port: 51820
-          cni_version: v1.3.0
           # 2 vCPU / 12Gi: memory-only reservation (avoid reserving scarce CPU)
           kubelet_kube_reserved: "memory=512Mi"
           kubelet_system_reserved: "memory=512Mi"
@@ -28,7 +27,6 @@ all:
           wireguard_zone: home-static
           architecture: arm64
           wireguard_interface: wg0
-          cni_version: v1.3.0
           has_ufw: true
           # Direct (mesh) peering: nodes sharing a non-empty group establish a
           # WireGuard tunnel directly with each other so same-site traffic never
@@ -52,7 +50,6 @@ all:
           wireguard_zone: home-static
           architecture: amd64
           wireguard_interface: wg0
-          cni_version: v1.3.0
           has_ufw: true
           # Same home LAN as cm4 -> they peer directly (see cm4 for details).
           wireguard_direct_peer_group: home
@@ -71,7 +68,6 @@ all:
           wireguard_zone: home-static
           architecture: amd64
           wireguard_interface: wg0
-          cni_version: v1.3.0
           has_ufw: true
           # Same home LAN as cm4/s2204 -> they peer directly (see cm4 for details).
           wireguard_direct_peer_group: home
@@ -90,7 +86,6 @@ all:
           wireguard_zone: home-static
           architecture: arm64
           wireguard_interface: wg0
-          cni_version: v1.3.0
           has_ufw: true
           # Same home LAN as cm4/s2204/s2605 -> they peer directly (see cm4 for details).
           wireguard_direct_peer_group: home
@@ -109,7 +104,6 @@ all:
           wireguard_zone: oci
           architecture: arm64
           wireguard_interface: wg0
-          cni_version: v1.3.0
           has_ufw: true
           # 2 vCPU / 12Gi: memory-only reservation (avoid reserving scarce CPU)
           kubelet_kube_reserved: "memory=512Mi"
@@ -122,6 +116,10 @@ all:
     # apt repo channel (minor) derived from kubernetes_version, e.g. "v1.35".
     # Bumping kubernetes_version is enough; the channel follows automatically.
     kubernetes_apt_channel: "v{{ kubernetes_version.split('.')[0] }}.{{ kubernetes_version.split('.')[1] }}"
+    # CNI plugins (containernetworking/plugins) release tag, shared by all hosts.
+    # Keep the leading "v" -- it is used verbatim in the GitHub release download URL.
+    # Tracked by Renovate (see renovate.json).
+    cni_version: v1.3.0
     pod_network_cidr: "10.244.0.0/16"
     service_cidr: "10.96.0.0/12"
 

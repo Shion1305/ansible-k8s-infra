@@ -225,6 +225,14 @@ ansible-playbook -i inventory.yml site.yml --limit=cm4
 kubernetes_version: "1.35.5-1.1"  # Update version (apt channel is derived from this)
 ```
 
+Keep the exact Debian package version (including the `-1.1` revision) — `apt`
+needs an exact string and does not accept version globs. **Renovate** (see
+`renovate.json`) opens a PR for k8s **patch** bumps automatically, rewriting only
+the `X.Y.Z` and preserving the revision; minor/major upgrades are done manually
+(they change the apt channel and are constrained by version-skew rules) and are
+surfaced on the Renovate Dependency Dashboard. `cni_version` is Renovate-tracked
+too, as a single value under `all.vars`.
+
 ### Modify Network CIDRs
 
 ```yaml
