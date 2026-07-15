@@ -199,6 +199,30 @@ workers talk directly, set a shared **`wireguard_direct_peer_group`** on them in
 - **kubeadm init** uses WireGuard IP as advertise address
 - Kubelet configured with node-ip pointing to WireGuard interface
 
+### Node Swap (opt-in, Kubernetes >= 1.35)
+
+Swap is **disabled by default** on every node (classic Kubernetes requirement):
+the `common` role runs `swapoff -a` and strips swap from `/etc/fstab`. Kubernetes
+1.35 ships stable swap support, so a host can opt in **per-node**:
+
+- Set `swap_enabled: true` on the host in `inventory.yml`. `common` then stops
+  disabling swap, and the `kubernetes` role writes a kubelet drop-in
+  (`{{ kubelet_config_dir }}/20-swap.conf`, merged via `kubelet --config-dir`)
+  with `failSwapOn: false` + `memorySwap.swapBehavior` — so kubelet starts with
+  swap on without editing the kubeadm-managed `/var/lib/kubelet/config.yaml`.
+- Add `swap_size` (e.g. `"64G"`, fallocate suffix) to have Ansible allocate,
+  `mkswap`, `fstab`-persist, and `swapon` a managed swapfile at `swap_file`
+  (default `/swapfile`). Leave `swap_size` empty to reuse swap the OS already
+  provides. Creation is idempotent (`creates:` guard); **resizing an existing
+  swapfile is not automated** — `swapoff` + remove it first, then re-deploy.
+- `kubelet_swap_behavior` (default `LimitedSwap`): only **Burstable** pods
+  *without* a memory limit can use swap; Guaranteed/BestEffort pods never do.
+  Use `NoSwap` for a node that tolerates swap but keeps workloads off it.
+- Requires **cgroup v2** (Ubuntu 22.04+ default) — asserted before a swapfile is
+  created. Defaults live in `group_vars/all.yml`; `tests/test_swap_config.py`
+  (run by `just test`) checks the inventory opt-in for consistency.
+- **Current use:** only `s2605` opts in, with a 64Gi managed swapfile.
+
 ### Ansible Configuration (ansible.cfg)
 
 - Host key checking disabled

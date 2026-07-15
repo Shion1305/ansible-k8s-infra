@@ -77,6 +77,11 @@ all:
           kubelet_kube_reserved: "cpu=500m,memory=1Gi"
           kubelet_system_reserved: "cpu=500m,memory=1Gi"
           kubelet_eviction_hard: "memory.available<500Mi,nodefs.available<10%,imagefs.available<15%"
+          # Node swap (Kubernetes NodeSwap, k8s >= 1.35). This node keeps swap on
+          # and kubelet may schedule swap onto eligible pods; Ansible provisions a
+          # 64Gi managed swapfile. Only host opted in — see group_vars/all.yml.
+          swap_enabled: true
+          swap_size: "64G"
 
         raspi5:
           ansible_host: raspi5
