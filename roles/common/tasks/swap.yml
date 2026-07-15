@@ -1,0 +1,94 @@
+---
+# Node swap handling.
+#
+# Default (`swap_enabled: false`): enforce the classic Kubernetes requirement and
+# disable swap everywhere.
+# Opt-in (`swap_enabled: true`, Kubernetes >= 1.35): keep swap on and, when
+# `swap_size` is set, provision a managed swapfile. The matching kubelet drop-in
+# (failSwapOn / memorySwap.swapBehavior) is written by the `kubernetes` role.
+# See group_vars/all.yml for the variable contract.
+
+- name: Check if any swap is active
+  ansible.builtin.command: swapon --summary
+  register: common_swapon_summary
+  changed_when: false
+
+# --- swap_enabled: false (default) -> disable swap ---------------------------
+- name: Disable swap for Kubernetes when enabled
+  ansible.builtin.command: swapoff -a
+  when:
+    - not (swap_enabled | default(false) | bool)
+    - common_swapon_summary.stdout | trim != ""
+  # `swapon --summary` is empty when no swap is active, so this only runs (and
+  # only reports changed) when there is actually swap to turn off.
+  changed_when: true
+
+- name: Remove any swap entries from fstab
+  # Idempotent: with no swap entries nothing changes. Skipped when swap is opted
+  # in so a managed swapfile's fstab entry (added below) is not stripped again.
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^\s*[^#]+\s+none\s+swap\s+'
+    state: absent
+  when: not (swap_enabled | default(false) | bool)
+
+# --- swap_enabled: true with swap_size -> ensure a managed swapfile ----------
+- name: Provision managed swapfile
+  when:
+    - swap_enabled | default(false) | bool
+    - (swap_size | default('')) | length > 0
+  block:
+    # Kubernetes swap support requires cgroup v2. Fail early with a clear message
+    # instead of letting kubelet misbehave. /sys/fs/cgroup/cgroup.controllers only
+    # exists under the unified (v2) hierarchy.
+    - name: Assert cgroup v2 is active (required for Kubernetes swap)
+      ansible.builtin.stat:
+        path: /sys/fs/cgroup/cgroup.controllers
+      register: common_cgroup_v2
+
+    - name: Fail when cgroup v2 is not active
+      ansible.builtin.fail:
+        msg: >-
+          swap_enabled requires the cgroup v2 unified hierarchy, but
+          /sys/fs/cgroup/cgroup.controllers is missing on {{ inventory_hostname }}.
+          Boot with systemd.unified_cgroup_hierarchy=1 (Ubuntu 22.04+ default).
+      when: not common_cgroup_v2.stat.exists
+
+    - name: Allocate swapfile
+      ansible.builtin.command:
+        cmd: "fallocate -l {{ swap_size }} {{ swap_file }}"
+        creates: "{{ swap_file }}"
+      register: common_swapfile_alloc
+
+    - name: Secure swapfile permissions
+      ansible.builtin.file:
+        path: "{{ swap_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    # mkswap must run in-line right after allocation (before the swapon below),
+    # not deferred to a handler; guarded so it only formats a freshly created
+    # file, never an already-active swapfile.
+    - name: Format swapfile # noqa: no-handler
+      ansible.builtin.command:
+        cmd: "mkswap {{ swap_file }}"
+      when: common_swapfile_alloc is changed
+      changed_when: true
+
+    - name: Persist swapfile in fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: "^{{ swap_file | regex_escape }}\\s"
+        line: "{{ swap_file }} none swap sw 0 0"
+        state: present
+
+    - name: Gather active swap devices
+      ansible.builtin.command: swapon --show=NAME --noheadings
+      register: common_active_swaps
+      changed_when: false
+
+    - name: Activate swapfile
+      ansible.builtin.command: "swapon {{ swap_file }}"
+      when: swap_file not in common_active_swaps.stdout_lines
+      changed_when: true
