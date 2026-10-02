@@ -242,6 +242,20 @@ service_cidr: "10.96.0.0/12"         # Service network
 wireguard_network: "10.130.5.0/24"     # WireGuard network
 ```
 
+### WireGuard MTU
+
+Set `wireguard_mtu` on an individual host to override wg-quick's automatic MTU
+selection. Hosts without this variable keep their existing configuration.
+`raspi5` uses 1380 because its cloud path drops 1400-byte IP packets while
+1380-byte probes succeed; large TLS handshakes stall on that path.
+
+Applying an MTU change through the existing configuration task restarts that
+host's WireGuard interface. Arrange local management access and a scoped
+rollout before applying. Verify both node TLS and Cilium/VXLAN Pod traffic
+afterward; changing the WireGuard configuration alone does not prove existing
+Cilium endpoints have a compatible MTU. See the
+[incident and validation gates](https://github.com/Shion1305/k8s-GitOps/issues/645).
+
 ### WireGuard Addressing (Zones)
 
 The overlay `10.130.5.0/24` is split into role/location **zones** (`oci`,

@@ -29,6 +29,15 @@ class TestWireguardTemplate:
         env.filters['extract'] = lambda key, container: container[key]
         return env
 
+    @pytest.mark.parametrize('mtu', [1280, 1380])
+    def test_explicit_mtu_preserves_the_rest_of_the_config(self, jinja_env, mtu):
+        """A host override changes only the interface MTU line."""
+        template = jinja_env.get_template('wg0.conf.j2')
+        for _, context, expected in self.test_cases:
+            actual = template.render({**context, 'wireguard_mtu': mtu})
+            assert actual.count(f'MTU = {mtu}\n') == 1
+            assert actual.replace(f'MTU = {mtu}\n', '') == expected
+
     # Test cases: (description, context, expected_output)
     test_cases = [
         (

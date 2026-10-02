@@ -86,6 +86,8 @@ all:
           wireguard_zone: home-static
           architecture: arm64
           wireguard_interface: wg0
+          # The cloud path passes 1380-byte IP packets but drops 1400 bytes.
+          wireguard_mtu: 1380
           has_ufw: true
           # Same home LAN as cm4/s2204/s2605 -> they peer directly (see cm4 for details).
           wireguard_direct_peer_group: home
