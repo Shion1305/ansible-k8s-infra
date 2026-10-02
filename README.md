@@ -246,14 +246,40 @@ wireguard_network: "10.130.5.0/24"     # WireGuard network
 
 Set `wireguard_mtu` on an individual host to override wg-quick's automatic MTU
 selection. Hosts without this variable keep their existing configuration.
-`raspi5` uses 1380 because its cloud path drops 1400-byte IP packets while
+The inventory sets `raspi5` to 1380 because its cloud path drops 1400-byte IP packets while
 1380-byte probes succeed; large TLS handshakes stall on that path.
 
-Applying an MTU change through the existing configuration task restarts that
-host's WireGuard interface. Arrange local management access and a scoped
-rollout before applying. Verify both node TLS and Cilium/VXLAN Pod traffic
-afterward; changing the WireGuard configuration alone does not prove existing
-Cilium endpoints have a compatible MTU. See the
+**This repair is not ready to deploy through the existing recipes.**
+`just deploy raspi5` also selects the control plane and runs the full site.
+`--limit raspi5` lacks the control-plane key facts; `--limit k8s,raspi5`
+omits other direct-peer key facts and can remove those peers from the rendered
+configuration. The template task rewrites the whole configuration and its
+handler restarts WireGuard. Do not use these recipes or naive limits for this
+repair.
+
+The proposed host-local procedure requires separate review and approval of the
+executable mutation before use; no live change has been applied:
+
+1. Connect through the existing `raspi5` LAN management path. Record the runtime
+   MTU independently of the configuration, check `SaveConfig`, and make a
+   root-only backup on that host. Do not print or copy the private configuration
+   off-host. Resolve any `SaveConfig=true` overwrite behavior before proceeding.
+2. Change only the `[Interface]` MTU directive in the existing live configuration,
+   using an atomic edit that preserves ownership and permissions. Compare
+   non-MTU bytes and peer definitions in memory and abort on any other change.
+   Do not render the inventory template or replace peer configuration.
+3. Set only the runtime interface MTU with `ip link set dev wg0 mtu 1380`.
+   Do not restart wg-quick, run `wg setconf`, or redeploy the cluster. Confirm
+   that the live peer set and non-MTU configuration remain unchanged.
+4. Inspect existing Cilium route and Pod-interface MTUs, then verify a fresh
+   API-server kubelet request and the exact research Certificate server dry-run.
+   Any further Cilium change needs its own bounded review; wg0 alone does not
+   prove Pod traffic works. Verify Certificate Ready, hostname SAN and Gateway
+   listener status before closing the incident.
+
+Rollback restores the recorded runtime MTU and the secured configuration backup
+without resetting peers. This proposed procedure is not an implemented deployment
+command. See the
 [incident and validation gates](https://github.com/Shion1305/k8s-GitOps/issues/645).
 
 ### WireGuard Addressing (Zones)
