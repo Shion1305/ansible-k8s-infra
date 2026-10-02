@@ -1,6 +1,9 @@
 {% set my_peer_group = wireguard_direct_peer_group | default('') %}
 [Interface]
 Address = {{ wireguard_ip }}/24
+{% if wireguard_mtu is defined %}
+MTU = {{ wireguard_mtu }}
+{% endif %}
 {% if inventory_hostname in groups['control_plane'] or my_peer_group != '' %}
 ListenPort = {{ wireguard_port }}
 {% endif %}
