@@ -107,12 +107,46 @@
           + (['--kube-reserved=' + kubelet_kube_reserved] if (kubelet_kube_reserved | default('')) else [])
           + (['--system-reserved=' + kubelet_system_reserved] if (kubelet_system_reserved | default('')) else [])
           + (['--eviction-hard=' + kubelet_eviction_hard] if (kubelet_eviction_hard | default('')) else [])
+          + (['--config-dir=' + kubelet_config_dir] if (swap_enabled | default(false) | bool) else [])
         ) | join(' ')
       }}"
     mode: "0644"
     owner: root
     group: root
     create: true
+  notify: Restart kubelet
+
+# Kubernetes swap (>= 1.35): failSwapOn / memorySwap.swapBehavior can only be set
+# via KubeletConfiguration, not a CLI flag. Drop a merge file into --config-dir so
+# it layers over the kubeadm-managed /var/lib/kubelet/config.yaml without editing
+# it. The `common` role is what actually keeps swap on / provisions the swapfile.
+- name: Ensure kubelet drop-in config directory exists
+  ansible.builtin.file:
+    path: "{{ kubelet_config_dir }}"
+    state: directory
+    mode: "0755"
+  when: swap_enabled | default(false) | bool
+
+- name: Configure kubelet swap behavior (drop-in KubeletConfiguration)
+  ansible.builtin.copy:
+    dest: "{{ kubelet_config_dir }}/20-swap.conf"
+    mode: "0644"
+    owner: root
+    group: root
+    content: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      failSwapOn: false
+      memorySwap:
+        swapBehavior: {{ kubelet_swap_behavior }}
+  when: swap_enabled | default(false) | bool
+  notify: Restart kubelet
+
+- name: Remove kubelet swap drop-in when swap is disabled
+  ansible.builtin.file:
+    path: "{{ kubelet_config_dir }}/20-swap.conf"
+    state: absent
+  when: not (swap_enabled | default(false) | bool)
   notify: Restart kubelet
 
 - name: Enable and start services

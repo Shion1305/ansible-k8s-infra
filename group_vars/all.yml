@@ -12,6 +12,32 @@
 # across the playbooks and roles as `apt_lock_timeout | default(300)`.
 apt_lock_timeout: 300
 
+# --- Node swap (Kubernetes NodeSwap) -----------------------------------------
+# Classic Kubernetes requires swap OFF, so the default is disabled: the `common`
+# role runs `swapoff -a` and strips swap from /etc/fstab on every host.
+#
+# Kubernetes >= 1.35 ships stable swap support, so a host can opt in per-node by
+# overriding `swap_enabled: true` in inventory.yml. When enabled:
+#   * `common` stops disabling swap; if `swap_size` is non-empty it creates and
+#     activates a managed swapfile of that size (leave empty to use swap the OS
+#     already provides).
+#   * `kubernetes` writes a kubelet drop-in (failSwapOn: false +
+#     memorySwap.swapBehavior) so kubelet starts with swap on and lets eligible
+#     (Burstable, no memory limit) pods use it.
+# Requires cgroup v2 (Ubuntu 22.04+ default) — asserted before a swapfile is made.
+swap_enabled: false
+# Size of the managed swapfile, e.g. "8G" (fallocate suffix: G = GiB). Empty
+# means "do not create/manage a swapfile" — only meaningful when swap_enabled.
+swap_size: ""
+# Path of the managed swapfile.
+swap_file: /swapfile
+# kubelet memorySwap.swapBehavior: LimitedSwap (Burstable pods may use swap) or
+# NoSwap (node tolerates swap but workloads cannot use it).
+kubelet_swap_behavior: LimitedSwap
+# kubelet drop-in config directory (kubelet --config-dir). Matches kubeadm's
+# default so our swap drop-in merges cleanly over the kubeadm-managed config.
+kubelet_config_dir: /etc/kubernetes/kubelet.conf.d
+
 # Firewall allow-rules, consumed by the `firewall` role (roles/firewall). Keeping
 # the Kubernetes port list here removes the hardcoded ports that used to live
 # inline in site.yml's UFW block and makes the policy reviewable in one place.

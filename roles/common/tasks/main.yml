@@ -13,26 +13,10 @@
     lock_timeout: "{{ apt_lock_timeout | default(300) }}"
 
 # -----------------------------
-# Swap: disable only if enabled
+# Swap (disable by default; opt-in per host — see swap.yml / group_vars/all.yml)
 # -----------------------------
-- name: Check if any swap is active
-  ansible.builtin.command: swapon --summary
-  register: common_swapon_summary
-  changed_when: false
-
-- name: Disable swap for Kubernetes when enabled
-  ansible.builtin.command: swapoff -a
-  when: common_swapon_summary.stdout | trim != ""
-  # `swapon --summary` should be empty if no swap is active.
-  changed_when: true
-
-- name: Remove any swap entries from fstab
-  # This is idempotent, if no swap entries exist, nothing changes.
-  ansible.builtin.lineinfile:
-    path: /etc/fstab
-    regexp: '^\s*[^#]+\s+none\s+swap\s+'
-    state: absent # Removes swap entries
-  # This will be marked as changed only when files changed by this task.
+- name: Configure node swap
+  ansible.builtin.include_tasks: swap.yml
 
 - name: Load kernel modules
   # This is idempotent, loading an already loaded module has no effect.
