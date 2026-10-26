@@ -222,7 +222,7 @@ ansible-playbook -i inventory.yml site.yml --limit=cm4
 
 ```yaml
 # In inventory.yml
-kubernetes_version: "1.35.5-1.1"  # Update version (apt channel is derived from this)
+kubernetes_version: "1.35.9-1.1"  # Update version (apt channel is derived from this)
 ```
 
 Keep the exact Debian package version (including the `-1.1` revision) — `apt`
