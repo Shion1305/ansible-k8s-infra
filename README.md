@@ -282,6 +282,40 @@ without resetting peers. This proposed procedure is not an implemented deploymen
 command. See the
 [incident and validation gates](https://github.com/Shion1305/k8s-GitOps/issues/645).
 
+For `s2605`, the inventory also sets 1380 after the same cloud-path size probes.
+The running `wg0` MTU was set to 1380 separately on 2026-10-31. To persist that
+working value across reboot without re-rendering or restarting WireGuard, use
+the dedicated [s2605 MTU playbook](persist-s2605-wireguard-mtu.yml). It runs on
+`s2605` only, reads the existing configuration locally on that host, verifies
+the runtime MTU and exact configured/runtime peer set, and changes only the
+`[Interface] MTU` directive. It rejects unexpected file ownership, mode,
+active `SaveConfig`, duplicate directives, or a changed file hash. An atomic edit
+retains every other byte and keeps a root-only backup on the host. No private
+configuration is printed or copied to the Ansible controller.
+
+First run a read-only preview through the LAN management route:
+
+```bash
+uv run ansible-playbook -i inventory.yml persist-s2605-wireguard-mtu.yml
+```
+
+After reviewing its safe metadata and the node's health, pass the preview's
+`before_sha256` to the explicit apply invocation:
+
+```bash
+uv run ansible-playbook -i inventory.yml persist-s2605-wireguard-mtu.yml \
+  -e wireguard_mtu_apply=true \
+  -e wireguard_expected_sha256=<fresh-before_sha256>
+```
+
+The apply step refuses a changed file, saves the original under
+`/etc/wireguard/wg0.conf.pre-mtu-*` with mode 0600, and reports its backup
+path. Verify the node Lease, Cilium readiness, and configured/runtime peer
+counts afterward. To roll back, restore that backup on `s2605` through the LAN
+management route before reboot; the running MTU is unchanged by this playbook.
+Do not use `just deploy s2605` for this repair: a limited full render can omit
+direct peers and restart WireGuard even though the inventory now records 1380.
+
 ### WireGuard Addressing (Zones)
 
 The overlay `10.130.5.0/24` is split into role/location **zones** (`oci`,
