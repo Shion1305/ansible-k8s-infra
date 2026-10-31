@@ -317,6 +317,48 @@ management route before reboot; the running MTU is unchanged by this playbook.
 Do not use `just deploy s2605` for this repair: a limited full render can omit
 direct peers and restart WireGuard even though the inventory now records 1380.
 
+### s2605 local GARM workspace disk
+
+`prepare-s2605-garm-workspaces.yml` prepares only the physical SATA SSD with
+by-id path `ata-WDC_WDS500G2B0A-00SM50_200391450101` for ephemeral runner
+workspaces. It is separate from `site.yml` and leaves the NVMe root disk,
+containerd, kubelet, and existing Pods alone. Its default invocation is a
+read-only preview:
+
+```bash
+uv run ansible-playbook -i inventory.yml prepare-s2605-garm-workspaces.yml
+```
+
+The first apply requires **both** switches. It replaces the reviewed old GPT
+layout (1 GiB EFI plus 464.8 GiB ext4) with one ext4 partition, destroying the
+old data. This is a format, not a secure erase. The script refuses a changed
+disk identity, size, old partition UUID, boot-device ancestry, UEFI BootCurrent
+entry, mounted
+descendant, active swap, holder, nonempty mountpoint, or conflicting fstab
+entry. Review the preview and the exact target before running:
+
+```bash
+uv run ansible-playbook -i inventory.yml prepare-s2605-garm-workspaces.yml \
+  -e garm_workspace_apply=true -e garm_workspace_initialize=true
+```
+
+The filesystem mounts at `/var/lib/garm-workspaces` by UUID with
+`nodev,nosuid,noatime`; normal execution remains available for CI builds.
+`nofail,x-systemd.device-timeout=10s` keeps a missing, nonessential CI disk
+from blocking node boot. The provisioner requires a marker on the mounted SSD
+and refuses workspace provisioning when that disk is absent.
+After verifying that exact SATA mount, the playbook creates
+`volumes/.garm-ssd-ready` for the local workspace provisioner. Later runs can
+repair the mount or marker without formatting again:
+
+```bash
+uv run ansible-playbook -i inventory.yml prepare-s2605-garm-workspaces.yml \
+  -e garm_workspace_apply=true
+```
+
+Runner Pod storage routing is managed separately in k8s-GitOps. Do not enable
+that routing until this mount and marker are verified on `s2605`.
+
 ### WireGuard Addressing (Zones)
 
 The overlay `10.130.5.0/24` is split into role/location **zones** (`oci`,
