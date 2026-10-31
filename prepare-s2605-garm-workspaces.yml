@@ -1,0 +1,108 @@
+---
+# Dedicated, opt-in preparation of the SATA SSD for local GARM Pod workspaces.
+# The normal site playbook never formats or mounts this disk.
+- name: Prepare s2605's dedicated local CI workspace disk
+  hosts: s2605
+  gather_facts: true
+  become: true
+
+  pre_tasks:
+    - name: Restrict disk preparation to the exact intended host and explicit mode
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 's2605'
+          - ansible_play_hosts_all == ['s2605']
+          - ansible_facts['hostname'] == 'shion-ubuntu-2605'
+          - not (garm_workspace_initialize | default(false) | bool) or
+            (garm_workspace_apply | default(false) | bool)
+        fail_msg: >-
+          Only s2605 may run this playbook. Destructive initialization requires
+          both garm_workspace_apply=true and garm_workspace_initialize=true.
+
+  tasks:
+    - name: Preview the exact SATA layout and mount state without changes
+      ansible.builtin.script: scripts/prepare_s2605_garm_workspaces.py
+      register: workspace_preview
+      changed_when: false
+      check_mode: false
+
+    - name: Show the guarded disk preview
+      ansible.builtin.debug:
+        msg: "{{ workspace_preview.stdout | from_json }}"
+
+    - name: Initialize the exact former SATA layout once
+      ansible.builtin.script: scripts/prepare_s2605_garm_workspaces.py --initialize
+      register: workspace_initialization
+      changed_when: (workspace_initialization.stdout | from_json).changed
+      when:
+        - garm_workspace_apply | default(false) | bool
+        - garm_workspace_initialize | default(false) | bool
+        - not ansible_check_mode
+
+    - name: Mount and mark the verified SATA filesystem
+      when:
+        - garm_workspace_apply | default(false) | bool
+        - not ansible_check_mode
+      block:
+        - name: Recheck the SATA layout after optional initialization
+          ansible.builtin.script: scripts/prepare_s2605_garm_workspaces.py
+          register: workspace_final
+          changed_when: false
+
+        - name: Require the prepared ext4 filesystem before mounting
+          ansible.builtin.assert:
+            that:
+              - (workspace_final.stdout | from_json).layout == 'ready'
+              - (workspace_final.stdout | from_json).uuid | length > 0
+            fail_msg: >-
+              The SATA disk is still in its old layout. Initialization requires
+              garm_workspace_initialize=true; no mount or marker was created.
+
+        - name: Create the empty workspace mountpoint
+          ansible.builtin.file:
+            path: /var/lib/garm-workspaces
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Mount the SATA filesystem by UUID and persist it at boot
+          ansible.posix.mount:
+            path: /var/lib/garm-workspaces
+            src: "UUID={{ (workspace_final.stdout | from_json).uuid }}"
+            fstype: ext4
+            opts: defaults,nodev,nosuid,noatime,nofail,x-systemd.device-timeout=10s
+            dump: "0"
+            passno: "2"
+            state: mounted
+
+        - name: Verify that the mounted workspace is the prepared SATA partition
+          ansible.builtin.command:
+            argv:
+              - findmnt
+              - --noheadings
+              - --evaluate
+              - --canonicalize
+              - --mountpoint
+              - /var/lib/garm-workspaces
+              - --output
+              - SOURCE
+          register: workspace_verified_mount
+          changed_when: false
+          failed_when: workspace_verified_mount.stdout | trim != '/dev/sda1'
+
+        - name: Create the provisioner's dedicated volume parent on the SATA mount
+          ansible.builtin.file:
+            path: /var/lib/garm-workspaces/volumes
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Mark the UUID-verified SATA volume for the local provisioner
+          ansible.builtin.copy:
+            dest: /var/lib/garm-workspaces/volumes/.garm-ssd-ready
+            content: "garm-workspaces-s2605-v1\n"
+            owner: root
+            group: root
+            mode: "0444"
