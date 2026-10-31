@@ -135,6 +135,8 @@ def persist(data: bytes, proposed: bytes, metadata: os.stat_result) -> str:
 
     backup = CONFIG.with_name(f"{CONFIG.name}.pre-mtu-{int(time.time())}-{os.getpid()}")
     backup_fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.fchmod(backup_fd, 0o600)
+    os.fchown(backup_fd, 0, 0)
     write_all(backup_fd, data)
     sync_config_directory()
 
