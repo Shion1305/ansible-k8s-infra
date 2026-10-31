@@ -34,7 +34,7 @@
     - name: Persist only the MTU directive with a root-only backup
       ansible.builtin.script: >-
         scripts/persist_s2605_wireguard_mtu.py --apply
-        --expected-sha256 {{ wireguard_expected_sha256 }}
+        --expected-sha256 {{ wireguard_expected_sha256 | default('') }}
       register: mtu_apply_result
       changed_when: (mtu_apply_result.stdout | from_json).changed
       when:
