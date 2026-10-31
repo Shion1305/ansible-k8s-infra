@@ -288,10 +288,11 @@ working value across reboot without re-rendering or restarting WireGuard, use
 the dedicated [s2605 MTU playbook](persist-s2605-wireguard-mtu.yml). It runs on
 `s2605` only, reads the existing configuration locally on that host, verifies
 the runtime MTU and exact configured/runtime peer set, and changes only the
-`[Interface] MTU` directive. It rejects unexpected file ownership, mode,
-active `SaveConfig`, duplicate directives, or a changed file hash. An atomic edit
-retains every other byte and keeps a root-only backup on the host. No private
-configuration is printed or copied to the Ansible controller.
+`[Interface] MTU` directive. It rejects unexpected file ownership or mode,
+active `SaveConfig`, multiple `[Interface]` sections or `Address`/`MTU`
+directives, repeated peer keys, or a changed file hash. The atomic edit retains
+every other byte and keeps a root-only backup on the host. The playbook never
+prints or copies the private configuration to the Ansible controller.
 
 First run a read-only preview through the LAN management route:
 
