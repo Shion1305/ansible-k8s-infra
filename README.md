@@ -305,7 +305,7 @@ After reviewing its safe metadata and the node's health, pass the preview's
 ```bash
 uv run ansible-playbook -i inventory.yml persist-s2605-wireguard-mtu.yml \
   -e wireguard_mtu_apply=true \
-  -e wireguard_expected_sha256=<fresh-before_sha256>
+  -e wireguard_expected_sha256=PASTE_PREVIEW_BEFORE_SHA256
 ```
 
 The apply step refuses a changed file, saves the original under
