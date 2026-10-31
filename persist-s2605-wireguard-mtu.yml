@@ -1,0 +1,48 @@
+---
+# Only persist the MTU already applied at runtime on s2605. Never render peers
+# or restart WireGuard; the normal site playbook is unsafe for this narrow repair.
+- name: Persist s2605 WireGuard MTU without changing peers
+  hosts: s2605
+  gather_facts: false
+  become: true
+
+  pre_tasks:
+    - name: Guard the host, target MTU, and explicit apply hash
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 's2605'
+          - ansible_play_hosts_all == ['s2605']
+          - wireguard_mtu | int == 1380
+          - not (wireguard_mtu_apply | default(false) | bool) or
+            (wireguard_expected_sha256 | default('') is match('^[0-9a-f]{64}$'))
+        fail_msg: >-
+          Run only against s2605; applying requires the exact config SHA-256
+          from a fresh read-only preview.
+
+  tasks:
+    - name: Preview the file-only MTU edit without exposing the configuration
+      ansible.builtin.script: scripts/persist_s2605_wireguard_mtu.py
+      register: mtu_preview
+      changed_when: false
+      check_mode: false
+      no_log: true
+
+    - name: Show safe preview metadata
+      ansible.builtin.debug:
+        msg: "{{ mtu_preview.stdout | from_json }}"
+
+    - name: Persist only the MTU directive with a root-only backup
+      ansible.builtin.script: >-
+        scripts/persist_s2605_wireguard_mtu.py --apply
+        --expected-sha256 {{ wireguard_expected_sha256 | default('') }}
+      register: mtu_apply_result
+      changed_when: (mtu_apply_result.stdout | from_json).changed
+      when:
+        - wireguard_mtu_apply | default(false) | bool
+        - not ansible_check_mode
+      no_log: true
+
+    - name: Show safe apply metadata
+      ansible.builtin.debug:
+        msg: "{{ mtu_apply_result.stdout | from_json }}"
+      when: mtu_apply_result is not skipped
